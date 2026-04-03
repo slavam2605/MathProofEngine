@@ -6,6 +6,7 @@ import dev.moklev.mathproof.core.statement
 import dev.moklev.mathproof.kernel.ProofVerifier
 import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.logic.LogicAxioms
+import dev.moklev.mathproof.logic.LogicLibrary
 import dev.moklev.mathproof.logic.implies
 import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.CoreSorts
@@ -197,5 +198,41 @@ class FirstOrderModuleTest {
 
         assertFalse(resultCheck.isValid)
         assertTrue(resultCheck.issues.any { it.message.contains("P(") && it.message.contains("Q(") })
+    }
+
+    @Test
+    fun appliesUniversalGeneralizationWithoutPremises() {
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+
+        val theorem = statement("forall-generalization-with-no-premises") {
+            val x = parameter("x", elementSort)
+            conclusion(forall("u", elementSort) { predicate(it) implies predicate(it) })
+            proof {
+                val identityAtX = infer(LogicLibrary.implicationIdentity(predicate(x)))
+                generalizeForAll(x, identityAtX)
+            }
+        }
+
+        assertVerifies(theorem)
+    }
+
+    @Test
+    fun rejectsUniversalGeneralizationWhenVariableAppearsInPremise() {
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+
+        val broken = statement("bad-forall-generalization-premise-capture") {
+            val x = parameter("x", elementSort)
+            val pxPremise = premise(predicate(x))
+            conclusion(forall("u", elementSort) { predicate(it) })
+            proof {
+                val givenPx = given(pxPremise)
+                generalizeForAll(x, givenPx)
+            }
+        }
+
+        val result = verifier.verify(broken)
+
+        assertFalse(result.isValid)
+        assertTrue(result.issues.any { it.message.contains("Universal generalization over") && it.message.contains("statement premise") })
     }
 }

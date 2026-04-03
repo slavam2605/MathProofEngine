@@ -61,5 +61,9 @@ object StatementPrinter {
                 "${justification.statement.name} $renderedPremises"
             }
         }
+        is UniversalGeneralization -> {
+            val source = stepNumbersByLabel[justification.sourceLabel]?.toString() ?: "?[${justification.sourceLabel}]"
+            "universal-generalization $source"
+        }
     }
 }

@@ -2,7 +2,9 @@ package dev.moklev.mathproof.kernel
 
 import dev.moklev.mathproof.model.Expr
 import dev.moklev.mathproof.model.Free
+import dev.moklev.mathproof.model.Lambda
 import dev.moklev.mathproof.model.Sort
+import dev.moklev.mathproof.model.abstract
 import dev.moklev.mathproof.model.betaNormalize
 import dev.moklev.mathproof.model.freshFree
 import dev.moklev.mathproof.model.requireProposition
@@ -83,6 +85,31 @@ class ProofBuilder internal constructor(
 
     fun infer(statement: StatementCall, vararg premises: Fact): Fact =
         infer(nextAutoLabel("step"), statement, *premises)
+
+    fun generalize(label: String, quantifier: Expr, variable: Free, source: Fact): Fact {
+        require(source.proofContextId == proofContextId) {
+            "Fact '${source.label}' does not belong to this proof."
+        }
+        val generalizedPredicate = Lambda(
+            parameterSort = variable.sort,
+            body = source.claim.abstract(variable),
+        ).apply {
+            parameterHint = variable.displayName
+        }
+        val generalizedClaim = quantifier(generalizedPredicate)
+        return addStep(
+            label = label,
+            claim = generalizedClaim,
+            justification = UniversalGeneralization(
+                sourceLabel = source.label,
+                quantifier = quantifier,
+                variable = variable,
+            ),
+        )
+    }
+
+    fun generalize(quantifier: Expr, variable: Free, source: Fact): Fact =
+        generalize(nextAutoLabel("step"), quantifier, variable, source)
 
     fun build(): ProofScript = ProofScript(steps.toList())
 

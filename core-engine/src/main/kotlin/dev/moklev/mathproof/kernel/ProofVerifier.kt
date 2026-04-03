@@ -1,7 +1,12 @@
 package dev.moklev.mathproof.kernel
 
 import dev.moklev.mathproof.model.Expr
+import dev.moklev.mathproof.model.Apply
+import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.CoreSorts
+import dev.moklev.mathproof.model.Free
+import dev.moklev.mathproof.model.Lambda
+import dev.moklev.mathproof.model.abstract
 import dev.moklev.mathproof.model.betaNormalize
 import dev.moklev.mathproof.model.isResolvedForVerification
 import dev.moklev.mathproof.model.validationIssues
@@ -132,6 +137,13 @@ class ProofVerifier {
                         }
                     }
                 }
+                is UniversalGeneralization -> {
+                    justification.quantifier.validationIssues(
+                        "quantifier in proof step '${step.label}'",
+                    ).forEach { message ->
+                        issues += VerificationIssue(index + 1, step.label, message)
+                    }
+                }
             }
         }
 
@@ -186,6 +198,7 @@ class ProofVerifier {
     ): String? = when (val justification = step.justification) {
         is PremiseReference -> validatePremiseReference(step, statement, justification)
         is StatementApplication -> validateStatementApplication(step, provenSteps, failedStepMessages, justification)
+        is UniversalGeneralization -> validateUniversalGeneralization(step, statement, provenSteps, failedStepMessages, justification)
     }
 
     private fun validatePremiseReference(
@@ -244,11 +257,53 @@ class ProofVerifier {
         }
     }
 
+    private fun validateUniversalGeneralization(
+        step: ProofStep,
+        statement: StatementDefinition,
+        provenSteps: Map<String, Expr>,
+        failedStepMessages: Map<String, String>,
+        justification: UniversalGeneralization,
+    ): String? {
+        val sourceClaim = provenSteps[justification.sourceLabel]
+            ?: return failedStepMessages[justification.sourceLabel]?.let { _ ->
+                "Source step '${justification.sourceLabel}' for universal generalization failed earlier."
+            } ?: "Unknown source step '${justification.sourceLabel}' for universal generalization."
+
+        if (statement.premises.any { premise -> premise.containsFreeSymbol(justification.variable.symbol) }) {
+            return "Universal generalization over '${justification.variable.displayName}' is invalid because this variable appears in a statement premise."
+        }
+
+        val expectedClaim = try {
+            val generalizedPredicate = Lambda(
+                parameterSort = justification.variable.sort,
+                body = sourceClaim.abstract(justification.variable),
+            ).apply {
+                parameterHint = justification.variable.displayName
+            }
+            Apply(justification.quantifier, generalizedPredicate).betaNormalize()
+        } catch (error: IllegalArgumentException) {
+            return error.message ?: "Invalid quantifier application in universal generalization."
+        }
+
+        return if (sameProposition(expectedClaim, step.claim)) {
+            null
+        } else {
+            "Universal generalization from step '${justification.sourceLabel}' expected '$expectedClaim', but got '${step.claim}'."
+        }
+    }
+
     private fun sameProposition(left: Expr, right: Expr): Boolean =
         normalized(left) == normalized(right)
 
     private fun normalized(expr: Expr): Expr =
         normalizedExprCache.getOrPut(expr) { expr.betaNormalize() }
+}
+
+private fun Expr.containsFreeSymbol(symbol: String): Boolean = when (this) {
+    is Free -> this.symbol == symbol
+    is Bound -> false
+    is Lambda -> body.containsFreeSymbol(symbol)
+    is Apply -> function.containsFreeSymbol(symbol) || argument.containsFreeSymbol(symbol)
 }
 
 data class VerificationResult(
