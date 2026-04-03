@@ -13,6 +13,7 @@ import dev.moklev.mathproof.logic.implies
 import dev.moklev.mathproof.logic.not
 import dev.moklev.mathproof.logic.or
 import dev.moklev.mathproof.model.CoreSorts
+import dev.moklev.mathproof.testutils.discoverStatements
 import kotlin.test.*
 
 class ProofVerifierTest {
@@ -24,7 +25,7 @@ class ProofVerifierTest {
     }
 
     private fun assertAllDiscoveredStatementsVerify(holder: Any) {
-        discoverStatementsForTests(holder).forEach { statement ->
+        discoverStatements(holder).forEach { statement ->
             assertVerifies(statement)
         }
     }

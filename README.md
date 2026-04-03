@@ -19,6 +19,8 @@ core-engine/
   core/       Foundational constructors and non-logical syntax (`CoreSorts`, constructors, lambda helpers)
 logic/
   logic/      Proposition-level syntax, trusted axioms, and proof-backed logical lemmas
+equality/
+  equality/   Generic equality syntax, trusted axioms, and proof-backed equality lemmas
 src/main/kotlin/dev/moklev/mathproof/
   examples/   Small sample proofs that double as executable documentation
   Main.kt     Runnable entry point

@@ -1,10 +1,10 @@
-package dev.moklev.mathproof
+package dev.moklev.mathproof.testutils
 
 import dev.moklev.mathproof.kernel.StatementDefinition
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
 
-fun discoverStatementsForTests(holder: Any): List<StatementDefinition> =
+fun discoverStatements(holder: Any): List<StatementDefinition> =
     holder::class.memberProperties
         .asSequence()
         .filter { it.returnType.classifier == StatementDefinition::class }

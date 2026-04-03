@@ -12,9 +12,10 @@ repositories {
 
 dependencies {
     implementation(project(":core-engine"))
+    implementation(project(":equality"))
     implementation(project(":logic"))
     testImplementation(kotlin("test"))
-    testImplementation(kotlin("reflect"))
+    testImplementation(testFixtures(project(":core-engine")))
 }
 
 kotlin {

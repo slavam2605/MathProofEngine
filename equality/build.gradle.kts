@@ -1,5 +1,4 @@
 plugins {
-    `java-test-fixtures`
     kotlin("jvm") version "2.3.20"
 }
 
@@ -11,7 +10,10 @@ repositories {
 }
 
 dependencies {
-    testFixturesImplementation(kotlin("reflect"))
+    implementation(project(":core-engine"))
+    implementation(project(":logic"))
+    testImplementation(kotlin("test"))
+    testImplementation(testFixtures(project(":core-engine")))
 }
 
 kotlin {

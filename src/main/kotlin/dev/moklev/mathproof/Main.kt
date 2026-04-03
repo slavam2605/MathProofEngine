@@ -13,9 +13,10 @@ fun main() {
 
         println("${statement.name}: $status")
         println(statement.prettyPrint())
-        if (!result.isValid) {
-            result.issues.forEach { println("  issue: $it") }
-        }
         println()
+
+        if (!result.isValid) {
+            error("Statement ${statement.name} failed verification: ${result.describeIssues()}")
+        }
     }
 }
