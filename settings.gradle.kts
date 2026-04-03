@@ -5,4 +5,5 @@ rootProject.name = "MathProofEngine"
 
 include(":core-engine")
 include(":equality")
+include(":fol")
 include(":logic")

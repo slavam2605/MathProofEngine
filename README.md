@@ -21,6 +21,8 @@ logic/
   logic/      Proposition-level syntax, trusted axioms, and proof-backed logical lemmas
 equality/
   equality/   Generic equality syntax, trusted axioms, and proof-backed equality lemmas
+fol/
+  fol/        Explicit `forall` / `exists` syntax and starter first-order rules
 src/main/kotlin/dev/moklev/mathproof/
   examples/   Small sample proofs that double as executable documentation
   Main.kt     Runnable entry point

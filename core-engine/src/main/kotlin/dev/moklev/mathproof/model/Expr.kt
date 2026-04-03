@@ -58,6 +58,34 @@ fun Expr.substitute(bindings: Map<String, Expr>): Expr = when (this) {
     )
 }
 
+fun Expr.resolveSorts(bindings: SortBindings): Expr = when (this) {
+    is Free -> this
+    is Bound -> {
+        val resolvedSort = sort.resolve(bindings)
+        if (resolvedSort == sort) this else copy(sort = resolvedSort)
+    }
+    is Lambda -> {
+        val resolvedParameterSort = parameterSort.resolve(bindings)
+        val resolvedBody = body.resolveSorts(bindings)
+        if (resolvedParameterSort == parameterSort && resolvedBody == body) {
+            this
+        } else {
+            Lambda(resolvedParameterSort, resolvedBody).apply {
+                parameterHint = this@resolveSorts.parameterHint
+            }
+        }
+    }
+    is Apply -> {
+        val resolvedFunction = function.resolveSorts(bindings)
+        val resolvedArgument = argument.resolveSorts(bindings)
+        if (resolvedFunction == function && resolvedArgument == argument) {
+            this
+        } else {
+            Apply(resolvedFunction, resolvedArgument)
+        }
+    }
+}
+
 fun freshFree(
     displayName: String,
     sort: Sort,

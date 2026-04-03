@@ -5,6 +5,7 @@ import dev.moklev.mathproof.model.Sort
 import dev.moklev.mathproof.model.SortVariable
 import dev.moklev.mathproof.model.betaNormalize
 import dev.moklev.mathproof.model.matchSort
+import dev.moklev.mathproof.model.resolveSorts
 import dev.moklev.mathproof.model.substitute
 
 data class StatementParameter(
@@ -25,6 +26,7 @@ data class StatementDefinition(
     val premises: List<Expr>,
     val conclusion: Expr,
     val support: StatementSupport,
+    val instantiationCheck: ((List<Expr>) -> Unit)? = null,
 ) {
     operator fun invoke(vararg arguments: Expr): StatementCall = instantiate(arguments.toList())
 
@@ -39,13 +41,14 @@ data class StatementDefinition(
                 "Statement '$name' expects argument '${parameter.name}' to have sort '${parameter.sort}', but got '${argument.sort}'."
             }
         }
+        instantiationCheck?.invoke(arguments)
 
         val bindings = parameters.map { it.symbol }.zip(arguments).toMap()
         return StatementCall(
             statement = this,
             arguments = arguments,
-            premises = premises.map { it.substitute(bindings).betaNormalize() },
-            conclusion = conclusion.substitute(bindings).betaNormalize(),
+            premises = premises.map { it.substitute(bindings).resolveSorts(sortBindings).betaNormalize() },
+            conclusion = conclusion.substitute(bindings).resolveSorts(sortBindings).betaNormalize(),
         )
     }
 }

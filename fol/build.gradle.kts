@@ -1,5 +1,4 @@
 plugins {
-    application
     kotlin("jvm") version "2.3.20"
 }
 
@@ -12,8 +11,6 @@ repositories {
 
 dependencies {
     implementation(project(":core-engine"))
-    implementation(project(":equality"))
-    implementation(project(":fol"))
     implementation(project(":logic"))
     testImplementation(kotlin("test"))
     testImplementation(testFixtures(project(":core-engine")))
@@ -21,10 +18,6 @@ dependencies {
 
 kotlin {
     jvmToolchain(21)
-}
-
-application {
-    mainClass = "dev.moklev.mathproof.MainKt"
 }
 
 tasks.test {

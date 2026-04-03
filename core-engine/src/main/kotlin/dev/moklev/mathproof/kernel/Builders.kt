@@ -104,6 +104,7 @@ class StatementBuilder(private val name: String) {
     private val premises = mutableListOf<Expr>()
     private var conclusion: Expr? = null
     private var support: StatementSupport? = null
+    private var instantiationCheck: ((List<Expr>) -> Unit)? = null
     private var autoPremiseCounter = 0
     private val statementContextId = BuildContextIds.next()
 
@@ -152,11 +153,17 @@ class StatementBuilder(private val name: String) {
         support = ProofProvided(ProofBuilder(statementContextId).apply(block).build())
     }
 
+    fun instantiationCheck(check: (List<Expr>) -> Unit) {
+        require(instantiationCheck == null) { "Statement '$name' already has an instantiation check defined." }
+        instantiationCheck = check
+    }
+
     fun build(): StatementDefinition = StatementDefinition(
         name = name,
         parameters = parameters.values.toList(),
         premises = premises.toList(),
         conclusion = requireNotNull(conclusion) { "Statement '$name' needs a conclusion." },
         support = requireNotNull(support) { "Statement '$name' needs support metadata such as assumed()." },
+        instantiationCheck = instantiationCheck,
     )
 }
