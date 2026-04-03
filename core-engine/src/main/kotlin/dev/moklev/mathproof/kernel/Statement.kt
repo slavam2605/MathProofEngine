@@ -30,6 +30,9 @@ data class StatementDefinition(
 ) {
     operator fun invoke(vararg arguments: Expr): StatementCall = instantiate(arguments.toList())
 
+    fun parameterNameForSymbol(symbol: String): String? =
+        parameters.firstOrNull { parameter -> parameter.symbol == symbol }?.name
+
     fun instantiate(arguments: List<Expr>): StatementCall {
         require(arguments.size == parameters.size) {
             "Statement '$name' expects ${parameters.size} arguments, but got ${arguments.size}."

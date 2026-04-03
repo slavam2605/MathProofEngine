@@ -95,6 +95,40 @@ class ProofVerifier(
             }
 
         val proof = (statement.support as? ProofProvided)?.proof ?: return issues
+        val seenArbitrarySymbols = mutableSetOf<String>()
+        val seenArbitraryDisplayNames = mutableSetOf<String>()
+        val statementParameterNames = statement.parameters.map { it.name }.toSet()
+        proof.arbitraryVariables.forEach { variable ->
+            if (!seenArbitrarySymbols.add(variable.symbol)) {
+                issues += VerificationIssue(
+                    stepIndex = null,
+                    stepLabel = null,
+                    message = "Proof for '${statement.name}' declares arbitrary variable symbol '${variable.symbol}' more than once.",
+                )
+            }
+            if (!seenArbitraryDisplayNames.add(variable.displayName)) {
+                issues += VerificationIssue(
+                    stepIndex = null,
+                    stepLabel = null,
+                    message = "Proof for '${statement.name}' declares arbitrary variable name '${variable.displayName}' more than once.",
+                )
+            }
+            if (variable.displayName in statementParameterNames) {
+                issues += VerificationIssue(
+                    stepIndex = null,
+                    stepLabel = null,
+                    message = "Proof for '${statement.name}' declares arbitrary variable '${variable.displayName}' that conflicts with a statement parameter name.",
+                )
+            }
+            if (!variable.sort.isResolvedForVerification()) {
+                issues += VerificationIssue(
+                    stepIndex = null,
+                    stepLabel = null,
+                    message = "Proof arbitrary variable '${variable.displayName}' in '${statement.name}' has unresolved sort '${variable.sort}'.",
+                )
+            }
+        }
+
         val seenLabels = mutableSetOf<String>()
         proof.steps.forEachIndexed { index, step ->
             if (!seenLabels.add(step.label)) {
@@ -145,6 +179,7 @@ class ProofVerifier(
                     } else {
                         val context = ExternalJustificationStructureContext(
                             statement = statement,
+                            proof = proof,
                             step = step,
                             stepIndex = index + 1,
                         )
@@ -169,7 +204,7 @@ class ProofVerifier(
         val issues = mutableListOf<VerificationIssue>()
 
         proof.steps.forEachIndexed { index, step ->
-            val issue = validateStep(step, provenSteps, failedStepMessages, statement)
+            val issue = validateStep(step, provenSteps, failedStepMessages, statement, proof)
             if (issue == null) {
                 provenSteps[step.label] = step.claim
             } else {
@@ -205,10 +240,11 @@ class ProofVerifier(
         provenSteps: Map<String, Expr>,
         failedStepMessages: Map<String, String>,
         statement: StatementDefinition,
+        proof: ProofScript,
     ): String? = when (val justification = step.justification) {
         is PremiseReference -> validatePremiseReference(step, statement, justification)
         is StatementApplication -> validateStatementApplication(step, provenSteps, failedStepMessages, justification)
-        else -> validateExternalJustification(step, statement, provenSteps, failedStepMessages, justification)
+        else -> validateExternalJustification(step, statement, proof, provenSteps, failedStepMessages, justification)
     }
 
     private fun validatePremiseReference(
@@ -270,6 +306,7 @@ class ProofVerifier(
     private fun validateExternalJustification(
         step: ProofStep,
         statement: StatementDefinition,
+        proof: ProofScript,
         provenSteps: Map<String, Expr>,
         failedStepMessages: Map<String, String>,
         justification: Justification,
@@ -278,6 +315,7 @@ class ProofVerifier(
             ?: return "No verifier extension registered for justification '${justification.displayName}'."
         val context = ExternalJustificationStepContext(
             statement = statement,
+            proof = proof,
             step = step,
             provenSteps = provenSteps,
             failedStepMessages = failedStepMessages,

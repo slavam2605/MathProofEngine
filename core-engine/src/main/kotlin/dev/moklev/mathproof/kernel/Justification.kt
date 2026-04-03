@@ -32,12 +32,14 @@ interface ExternalJustificationValidator<J : Justification> {
 
 data class ExternalJustificationStructureContext(
     val statement: StatementDefinition,
+    val proof: ProofScript,
     val step: ProofStep,
     val stepIndex: Int,
 )
 
 data class ExternalJustificationStepContext(
     val statement: StatementDefinition,
+    val proof: ProofScript,
     val step: ProofStep,
     val provenSteps: Map<String, Expr>,
     val failedStepMessages: Map<String, String>,

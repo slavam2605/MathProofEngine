@@ -48,10 +48,13 @@ private object BuildContextIds {
 
 class ProofBuilder internal constructor(
     private val statementContextId: Int,
+    private val statementParameterNames: Set<String> = emptySet(),
     private val proofContextId: Int = BuildContextIds.next(),
 ) {
     private val steps = mutableListOf<ProofStep>()
     private val labels = mutableSetOf<String>()
+    private val arbitraryVariablesBySymbol = linkedMapOf<String, ArbitraryVariable>()
+    private val arbitraryDisplayNames = mutableSetOf<String>()
     private var autoStepCounter = 0
 
     fun given(label: String, premise: StatementPremise): Fact {
@@ -88,7 +91,31 @@ class ProofBuilder internal constructor(
     fun justify(claim: Expr, justification: Justification, vararg facts: Fact): Fact =
         justify(nextAutoLabel("step"), claim, justification, *facts)
 
-    fun build(): ProofScript = ProofScript(steps.toList())
+    fun arbitrary(name: String, sort: Sort): Free {
+        require(name !in statementParameterNames) {
+            "Arbitrary variable '$name' conflicts with statement parameter '$name'. Choose a distinct name."
+        }
+        require(arbitraryDisplayNames.add(name)) {
+            "Arbitrary variable '$name' is already declared in this proof."
+        }
+
+        val variable = freshFree(
+            displayName = name,
+            sort = sort,
+            namespace = "proof-$proofContextId-arbitrary",
+        )
+        arbitraryVariablesBySymbol[variable.symbol] = ArbitraryVariable(
+            symbol = variable.symbol,
+            displayName = variable.displayName,
+            sort = variable.sort,
+        )
+        return variable
+    }
+
+    fun build(): ProofScript = ProofScript(
+        steps = steps.toList(),
+        arbitraryVariables = arbitraryVariablesBySymbol.values.toList(),
+    )
 
     private fun addStep(label: String, claim: Expr, justification: Justification): Fact {
         val normalizedClaim = claim.betaNormalize()
@@ -162,7 +189,12 @@ class StatementBuilder(private val name: String) {
 
     fun proof(block: ProofBuilder.() -> Unit) {
         require(support == null) { "Statement '$name' already has support defined." }
-        support = ProofProvided(ProofBuilder(statementContextId).apply(block).build())
+        support = ProofProvided(
+            ProofBuilder(
+                statementContextId = statementContextId,
+                statementParameterNames = parameters.keys.toSet(),
+            ).apply(block).build(),
+        )
     }
 
     fun instantiationCheck(check: (List<Expr>) -> Unit) {

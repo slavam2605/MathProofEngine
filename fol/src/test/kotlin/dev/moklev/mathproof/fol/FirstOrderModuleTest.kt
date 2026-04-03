@@ -2,14 +2,21 @@ package dev.moklev.mathproof.fol
 
 import dev.moklev.mathproof.core.constant
 import dev.moklev.mathproof.core.function
+import dev.moklev.mathproof.core.functionSort
 import dev.moklev.mathproof.core.statement
+import dev.moklev.mathproof.kernel.ArbitraryVariable
+import dev.moklev.mathproof.kernel.PremiseReference
 import dev.moklev.mathproof.kernel.ProofVerifier
+import dev.moklev.mathproof.kernel.ProofProvided
+import dev.moklev.mathproof.kernel.ProofScript
+import dev.moklev.mathproof.kernel.ProofStep
 import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.logic.LogicAxioms
 import dev.moklev.mathproof.logic.LogicLibrary
 import dev.moklev.mathproof.logic.implies
 import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.CoreSorts
+import dev.moklev.mathproof.model.Free
 import dev.moklev.mathproof.model.NamedSort
 import dev.moklev.mathproof.testutils.discoverStatements
 import kotlin.test.Test
@@ -201,19 +208,72 @@ class FirstOrderModuleTest {
     }
 
     @Test
-    fun appliesUniversalGeneralizationWithoutPremises() {
+    fun appliesUniversalGeneralizationWithProofLocalArbitraryVariableWithoutPremises() {
         val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
 
         val theorem = statement("forall-generalization-with-no-premises") {
-            val x = parameter("x", elementSort)
             conclusion(forall("u", elementSort) { predicate(it) implies predicate(it) })
             proof {
-                val identityAtX = infer(LogicLibrary.implicationIdentity(predicate(x)))
-                generalizeForAll(x, identityAtX)
+                forAllByGeneralization("x", elementSort) { x ->
+                    infer(LogicLibrary.implicationIdentity(predicate(x)))
+                }
             }
         }
 
         assertVerifies(theorem)
+    }
+
+    @Test
+    fun appliesUniversalGeneralizationWithUnrelatedPremise() {
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+        val guard = constant("guard", CoreSorts.Proposition)
+
+        val theorem = statement("forall-generalization-with-unrelated-premise") {
+            val guardPremise = premise(guard)
+            conclusion(forall("u", elementSort) { predicate(it) implies predicate(it) })
+            proof {
+                given(guardPremise)
+                forAllByGeneralization("x", elementSort) { x ->
+                    infer(LogicLibrary.implicationIdentity(predicate(x)))
+                }
+            }
+        }
+
+        assertVerifies(theorem)
+    }
+
+    @Test
+    fun rejectsDuplicateArbitraryVariableNamesInsideOneProof() {
+        val proposition = constant("phi", CoreSorts.Proposition)
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("duplicate-arbitrary-names") {
+                conclusion(proposition implies proposition)
+                proof {
+                    arbitrary("x", elementSort)
+                    arbitrary("x", elementSort)
+                }
+            }
+        }
+
+        assertTrue(error.message!!.contains("already declared"))
+    }
+
+    @Test
+    fun rejectsArbitraryVariableNameThatConflictsWithStatementParameter() {
+        val proposition = constant("phi", CoreSorts.Proposition)
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("arbitrary-name-conflicts-with-parameter") {
+                parameter("x", elementSort)
+                conclusion(proposition implies proposition)
+                proof {
+                    arbitrary("x", elementSort)
+                }
+            }
+        }
+
+        assertTrue(error.message!!.contains("conflicts with statement parameter"))
     }
 
     @Test
@@ -222,9 +282,9 @@ class FirstOrderModuleTest {
         val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
 
         val theorem = statement("forall-generalization-requires-extension") {
-            val x = parameter("x", elementSort)
             conclusion(forall("u", elementSort) { predicate(it) implies predicate(it) })
             proof {
+                val x = arbitrary("x", elementSort)
                 val identityAtX = infer(LogicLibrary.implicationIdentity(predicate(x)))
                 generalizeForAll(x, identityAtX)
             }
@@ -237,22 +297,136 @@ class FirstOrderModuleTest {
     }
 
     @Test
-    fun rejectsUniversalGeneralizationWhenVariableAppearsInPremise() {
+    fun rejectsUniversalGeneralizationOverStatementParameter() {
         val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
 
-        val broken = statement("bad-forall-generalization-premise-capture") {
+        val broken = statement("bad-forall-generalization-parameter-origin") {
             val x = parameter("x", elementSort)
-            val pxPremise = premise(predicate(x))
-            conclusion(forall("u", elementSort) { predicate(it) })
+            conclusion(forall("u", elementSort) { predicate(it) implies predicate(it) })
             proof {
-                val givenPx = given(pxPremise)
-                generalizeForAll(x, givenPx)
+                val identityAtX = infer(LogicLibrary.implicationIdentity(predicate(x)))
+                generalizeForAll(x, identityAtX)
             }
         }
 
         val result = verifier.verify(broken)
 
         assertFalse(result.isValid)
+        assertTrue(result.issues.any { it.message.contains("statement parameter") })
+    }
+
+    @Test
+    fun rejectsUniversalGeneralizationOverConstant() {
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+        val a = constant("a", elementSort)
+
+        val broken = statement("bad-forall-generalization-constant-origin") {
+            conclusion(forall("u", elementSort) { predicate(it) implies predicate(it) })
+            proof {
+                val identityAtA = infer(LogicLibrary.implicationIdentity(predicate(a)))
+                generalizeForAll(a, identityAtA)
+            }
+        }
+
+        val result = verifier.verify(broken)
+
+        assertFalse(result.isValid)
+        assertTrue(result.issues.any { it.message.contains("constant/untracked symbol") && it.message.contains("'a'") })
+    }
+
+    @Test
+    fun rejectsUniversalGeneralizationOverFunctionConstant() {
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+        val witness = constant("a", elementSort)
+
+        val broken = statement("bad-forall-generalization-function-constant-origin") {
+            conclusion(forall("f", functionSort(elementSort, returns = CoreSorts.Proposition)) { it(witness) implies it(witness) })
+            proof {
+                val identityAtWitness = infer(LogicLibrary.implicationIdentity(predicate(witness)))
+                generalizeForAll(predicate, identityAtWitness)
+            }
+        }
+
+        val result = verifier.verify(broken)
+
+        assertFalse(result.isValid)
+        assertTrue(result.issues.any { it.message.contains("constant/untracked symbol") && it.message.contains("P") })
+    }
+
+    @Test
+    fun rejectsUniversalGeneralizationWhenVariableAppearsInPremise() {
+        val x = Free(
+            symbol = "#manual-arbitrary-x",
+            sort = elementSort,
+            displayName = "x",
+        )
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+        val generalized = forall("u", elementSort) { predicate(it) }
+
+        val broken = StatementDefinition(
+            name = "bad-forall-generalization-premise-capture",
+            parameters = emptyList(),
+            premises = listOf(predicate(x)),
+            conclusion = generalized,
+            support = ProofProvided(
+                proof = ProofScript(
+                    steps = listOf(
+                        ProofStep(
+                            label = "givenPx",
+                            claim = predicate(x),
+                            justification = PremiseReference(0),
+                        ),
+                        ProofStep(
+                            label = "allPx",
+                            claim = generalized,
+                            justification = UniversalGeneralization(
+                                sourceLabel = "givenPx",
+                                variable = x,
+                            ),
+                        ),
+                    ),
+                    arbitraryVariables = listOf(
+                        ArbitraryVariable(
+                            symbol = x.symbol,
+                            displayName = x.displayName,
+                            sort = x.sort,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val result = verifier.verify(broken)
+
+        assertFalse(result.isValid)
         assertTrue(result.issues.any { it.message.contains("Universal generalization over") && it.message.contains("statement premise") })
+    }
+
+    @Test
+    fun rejectsUniversalGeneralizationWhenBinderSortMismatchesVariableSort() {
+        val proposition = constant("phi", CoreSorts.Proposition)
+        val otherSort = NamedSort("Other")
+
+        val broken = statement("bad-forall-generalization-binder-sort-mismatch") {
+            val wrongClaim = forall("u", otherSort) { proposition implies proposition }
+            conclusion(wrongClaim)
+            proof {
+                val x = arbitrary("x", elementSort)
+                val identity = infer(LogicLibrary.implicationIdentity(proposition))
+                justify(
+                    claim = wrongClaim,
+                    justification = UniversalGeneralization(
+                        sourceLabel = identity.label,
+                        variable = x,
+                    ),
+                    identity,
+                )
+            }
+        }
+
+        val result = verifier.verify(broken)
+
+        assertFalse(result.isValid)
+        assertTrue(result.issues.any { it.message.contains("binder sort") && it.message.contains("does not match") })
     }
 }

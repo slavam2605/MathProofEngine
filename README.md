@@ -66,6 +66,21 @@ val statement = statement("chained-modus-ponens") {
 }
 ```
 
+Universal generalization in `fol` now requires a proof-local arbitrary variable (not a statement parameter or constant):
+
+```kotlin
+val theorem = statement("forall-id") {
+    val s = sortVariable("S")
+    val p = function("P", s, returns = CoreSorts.Proposition)
+    conclusion(forall("u", s) { p(it) implies p(it) })
+    proof {
+        forAllByGeneralization("x", s) { x ->
+            infer(LogicLibrary.implicationIdentity(p(x)))
+        }
+    }
+}
+```
+
 Trusted logical primitives live in `LogicAxioms`, while proof-backed derived lemmas live in `LogicLibrary`.
 
 For example, the Hilbert `A1` schema is stored as an axiom:
