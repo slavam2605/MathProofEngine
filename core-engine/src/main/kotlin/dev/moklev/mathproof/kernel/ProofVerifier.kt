@@ -2,12 +2,14 @@ package dev.moklev.mathproof.kernel
 
 import dev.moklev.mathproof.model.Expr
 import dev.moklev.mathproof.model.CoreSorts
+import dev.moklev.mathproof.model.betaNormalize
 import dev.moklev.mathproof.model.isResolvedForVerification
 import dev.moklev.mathproof.model.validationIssues
 
 class ProofVerifier {
     private val verificationCache = mutableMapOf<StatementDefinition, VerificationResult>()
     private val verificationStack = mutableSetOf<StatementDefinition>()
+    private val normalizedExprCache = mutableMapOf<Expr, Expr>()
 
     fun verify(statement: StatementDefinition): VerificationResult {
         verificationCache[statement]?.let { return it }
@@ -165,7 +167,7 @@ class ProofVerifier {
                 stepLabel = null,
                 message = "Proof is empty.",
             )
-        } else if (issues.isEmpty() && lastClaim != statement.conclusion) {
+        } else if (issues.isEmpty() && !sameProposition(lastClaim, statement.conclusion)) {
             issues += VerificationIssue(
                 stepIndex = proof.steps.size,
                 stepLabel = proof.steps.last().label,
@@ -194,7 +196,7 @@ class ProofVerifier {
         val premise = statement.premises.getOrNull(justification.premiseIndex)
             ?: return "Premise reference ${justification.premiseIndex + 1} does not exist in '${statement.name}'."
 
-        return if (premise == step.claim) {
+        return if (sameProposition(premise, step.claim)) {
             null
         } else {
             "Premise reference ${justification.premiseIndex + 1} in '${statement.name}' proves '$premise', not '${step.claim}'."
@@ -230,17 +232,23 @@ class ProofVerifier {
                 ?: return failedStepMessages[label]?.let { _ ->
                     "Premise step '$label' for statement '${statement.name}' failed earlier."
                 } ?: "Unknown premise step '$label' for statement '${statement.name}'."
-            if (actualPremise != expectedPremise) {
+            if (!sameProposition(actualPremise, expectedPremise)) {
                 return "Premise ${index + 1} for statement '${statement.name}' expected '$expectedPremise', but step '$label' proves '$actualPremise'."
             }
         }
 
-        return if (statementCall.conclusion == step.claim) {
+        return if (sameProposition(statementCall.conclusion, step.claim)) {
             null
         } else {
             "Statement '${statement.name}' concludes '${statementCall.conclusion}', not '${step.claim}'."
         }
     }
+
+    private fun sameProposition(left: Expr, right: Expr): Boolean =
+        normalized(left) == normalized(right)
+
+    private fun normalized(expr: Expr): Expr =
+        normalizedExprCache.getOrPut(expr) { expr.betaNormalize() }
 }
 
 data class VerificationResult(

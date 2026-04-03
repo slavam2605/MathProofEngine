@@ -41,7 +41,9 @@ fun lambda(
 ): Expr {
     val placeholder = freshFree(name, sort, namespace = "lambda")
     val body = bodyBuilder(placeholder).abstract(placeholder)
-    return Lambda(parameterSort = sort, body = body, parameterHint = name)
+    return Lambda(parameterSort = sort, body = body).apply {
+        parameterHint = name
+    }
 }
 
 fun statement(name: String, block: StatementBuilder.() -> Unit): StatementDefinition =

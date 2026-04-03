@@ -3,6 +3,7 @@ package dev.moklev.mathproof.kernel
 import dev.moklev.mathproof.model.Expr
 import dev.moklev.mathproof.model.Free
 import dev.moklev.mathproof.model.Sort
+import dev.moklev.mathproof.model.betaNormalize
 import dev.moklev.mathproof.model.freshFree
 import dev.moklev.mathproof.model.requireProposition
 
@@ -86,9 +87,10 @@ class ProofBuilder internal constructor(
     fun build(): ProofScript = ProofScript(steps.toList())
 
     private fun addStep(label: String, claim: Expr, justification: Justification): Fact {
+        val normalizedClaim = claim.betaNormalize()
         require(labels.add(label)) { "Step label '$label' is already used in this proof." }
-        steps += ProofStep(label, claim, justification)
-        return Fact.fromProof(label, claim, proofContextId)
+        steps += ProofStep(label, normalizedClaim, justification)
+        return Fact.fromProof(label, normalizedClaim, proofContextId)
     }
 
     private fun nextAutoLabel(prefix: String): String {
@@ -117,12 +119,13 @@ class StatementBuilder(private val name: String) {
     }
 
     fun premise(label: String, claim: Expr): StatementPremise {
-        requireProposition(claim, "Statement premise")
-        premises += claim
+        val normalizedClaim = claim.betaNormalize()
+        requireProposition(normalizedClaim, "Statement premise")
+        premises += normalizedClaim
         return StatementPremise.create(
             index = premises.lastIndex,
             label = label,
-            claim = claim,
+            claim = normalizedClaim,
             statementContextId = statementContextId,
         )
     }
@@ -133,9 +136,10 @@ class StatementBuilder(private val name: String) {
     }
 
     fun conclusion(claim: Expr) {
-        requireProposition(claim, "Statement conclusion")
+        val normalizedClaim = claim.betaNormalize()
+        requireProposition(normalizedClaim, "Statement conclusion")
         require(conclusion == null) { "Statement '$name' already has a conclusion." }
-        conclusion = claim
+        conclusion = normalizedClaim
     }
 
     fun assumed(note: String? = null) {

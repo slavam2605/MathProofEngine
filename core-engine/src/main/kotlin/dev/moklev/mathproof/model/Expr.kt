@@ -31,9 +31,9 @@ data class Bound(
 
 data class Lambda(
     val parameterSort: Sort,
-    val body: Expr,
-    val parameterHint: String? = null,
+    val body: Expr
 ) : Expr {
+    var parameterHint: String? = null
     override val sort: Sort = FunctionSort(parameterSort, body.sort)
 
     override fun toString(): String = render()

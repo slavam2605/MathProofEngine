@@ -3,6 +3,7 @@ package dev.moklev.mathproof.kernel
 import dev.moklev.mathproof.model.Expr
 import dev.moklev.mathproof.model.Sort
 import dev.moklev.mathproof.model.SortVariable
+import dev.moklev.mathproof.model.betaNormalize
 import dev.moklev.mathproof.model.matchSort
 import dev.moklev.mathproof.model.substitute
 
@@ -43,8 +44,8 @@ data class StatementDefinition(
         return StatementCall(
             statement = this,
             arguments = arguments,
-            premises = premises.map { it.substitute(bindings) },
-            conclusion = conclusion.substitute(bindings),
+            premises = premises.map { it.substitute(bindings).betaNormalize() },
+            conclusion = conclusion.substitute(bindings).betaNormalize(),
         )
     }
 }
