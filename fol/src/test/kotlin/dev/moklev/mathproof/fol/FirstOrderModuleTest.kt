@@ -19,7 +19,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class FirstOrderModuleTest {
-    private val verifier = ProofVerifier()
+    private val verifier = ProofVerifier(firstOrderJustificationValidators)
     private val elementSort = NamedSort("Element")
 
     private fun assertVerifies(statement: StatementDefinition) {
@@ -214,6 +214,26 @@ class FirstOrderModuleTest {
         }
 
         assertVerifies(theorem)
+    }
+
+    @Test
+    fun rejectsUniversalGeneralizationWithoutRegisteredExtension() {
+        val baseVerifier = ProofVerifier()
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+
+        val theorem = statement("forall-generalization-requires-extension") {
+            val x = parameter("x", elementSort)
+            conclusion(forall("u", elementSort) { predicate(it) implies predicate(it) })
+            proof {
+                val identityAtX = infer(LogicLibrary.implicationIdentity(predicate(x)))
+                generalizeForAll(x, identityAtX)
+            }
+        }
+
+        val result = baseVerifier.verify(theorem)
+
+        assertFalse(result.isValid)
+        assertTrue(result.issues.any { it.message.contains("No verifier extension registered for justification") })
     }
 
     @Test

@@ -2,9 +2,7 @@ package dev.moklev.mathproof.kernel
 
 import dev.moklev.mathproof.model.Expr
 import dev.moklev.mathproof.model.Free
-import dev.moklev.mathproof.model.Lambda
 import dev.moklev.mathproof.model.Sort
-import dev.moklev.mathproof.model.abstract
 import dev.moklev.mathproof.model.betaNormalize
 import dev.moklev.mathproof.model.freshFree
 import dev.moklev.mathproof.model.requireProposition
@@ -67,11 +65,7 @@ class ProofBuilder internal constructor(
         given(nextAutoLabel(premise.label), premise)
 
     fun infer(label: String, statement: StatementCall, vararg premises: Fact): Fact {
-        premises.forEach { premise ->
-            require(premise.proofContextId == proofContextId) {
-                "Fact '${premise.label}' does not belong to this proof."
-            }
-        }
+        requireFactsBelongToThisProof(*premises)
         return addStep(
             label = label,
             claim = statement.conclusion,
@@ -86,30 +80,13 @@ class ProofBuilder internal constructor(
     fun infer(statement: StatementCall, vararg premises: Fact): Fact =
         infer(nextAutoLabel("step"), statement, *premises)
 
-    fun generalize(label: String, quantifier: Expr, variable: Free, source: Fact): Fact {
-        require(source.proofContextId == proofContextId) {
-            "Fact '${source.label}' does not belong to this proof."
-        }
-        val generalizedPredicate = Lambda(
-            parameterSort = variable.sort,
-            body = source.claim.abstract(variable),
-        ).apply {
-            parameterHint = variable.displayName
-        }
-        val generalizedClaim = quantifier(generalizedPredicate)
-        return addStep(
-            label = label,
-            claim = generalizedClaim,
-            justification = UniversalGeneralization(
-                sourceLabel = source.label,
-                quantifier = quantifier,
-                variable = variable,
-            ),
-        )
+    fun justify(label: String, claim: Expr, justification: Justification, vararg facts: Fact): Fact {
+        requireFactsBelongToThisProof(*facts)
+        return addStep(label, claim, justification)
     }
 
-    fun generalize(quantifier: Expr, variable: Free, source: Fact): Fact =
-        generalize(nextAutoLabel("step"), quantifier, variable, source)
+    fun justify(claim: Expr, justification: Justification, vararg facts: Fact): Fact =
+        justify(nextAutoLabel("step"), claim, justification, *facts)
 
     fun build(): ProofScript = ProofScript(steps.toList())
 
@@ -118,6 +95,14 @@ class ProofBuilder internal constructor(
         require(labels.add(label)) { "Step label '$label' is already used in this proof." }
         steps += ProofStep(label, normalizedClaim, justification)
         return Fact.fromProof(label, normalizedClaim, proofContextId)
+    }
+
+    private fun requireFactsBelongToThisProof(vararg facts: Fact) {
+        facts.forEach { fact ->
+            require(fact.proofContextId == proofContextId) {
+                "Fact '${fact.label}' does not belong to this proof."
+            }
+        }
     }
 
     private fun nextAutoLabel(prefix: String): String {

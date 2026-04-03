@@ -4,11 +4,8 @@ import dev.moklev.mathproof.core.function
 import dev.moklev.mathproof.core.functionSort
 import dev.moklev.mathproof.core.lambda
 import dev.moklev.mathproof.core.sortVariable
-import dev.moklev.mathproof.kernel.Fact
-import dev.moklev.mathproof.kernel.ProofBuilder
 import dev.moklev.mathproof.model.CoreSorts
 import dev.moklev.mathproof.model.Expr
-import dev.moklev.mathproof.model.Free
 import dev.moklev.mathproof.model.Sort
 
 object FirstOrderFunctions {
@@ -41,14 +38,3 @@ private fun quantifiedPredicate(
     }
     return predicate
 }
-
-fun ProofBuilder.generalizeForAll(
-    label: String,
-    variable: Free,
-    source: Fact,
-): Fact = generalize(label, FirstOrderFunctions.ForAll, variable, source)
-
-fun ProofBuilder.generalizeForAll(
-    variable: Free,
-    source: Fact,
-): Fact = generalize(FirstOrderFunctions.ForAll, variable, source)
