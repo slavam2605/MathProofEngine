@@ -202,6 +202,41 @@ object LogicLibrary {
         }
     }
 
+    /**
+     * !p -> p -> q
+     */
+    val exFalso = statement("ex-falso-quodlibet") {
+        val p = parameter("p", CoreSorts.Proposition)
+        val q = parameter("q", CoreSorts.Proposition)
+
+        conclusion(!p implies (p implies q))
+        proof {
+            val step1 = infer(hilbertAxiom1(!p, !q))
+            val step2 = infer(hilbertAxiom3(p, q))
+            infer(hypotheticalSyllogism(!p, !q implies !p, p implies q), step1, step2)
+        }
+    }
+
+    /**
+     * (!p -> p) -> p
+     */
+    val clavius = statement("clavius") {
+        val p = parameter("p", CoreSorts.Proposition)
+        conclusion((!p implies p) implies p)
+        proof {
+            assume(!p implies p) {
+                val a = assumption.claim
+                val step2 = infer(exFalso(p, !a))
+                val step3 = infer(hilbertAxiom2(!p, p, !a))
+                val step4 = infer(modusPonens(step2.claim, a implies (!p implies !a)), step2, step3)
+                val step5 = infer(modusPonens(a, !p implies !a), assumption, step4)
+                val step6 = infer(hilbertAxiom3(a, p))
+                val step7 = infer(modusPonens(!p implies !a, a implies p), step5, step6)
+                infer(modusPonens(a, p), assumption, step7)
+            }
+        }
+    }
+
     val disjunctionLeftInjection = statement("disjunction-left-injection") {
         val p = parameter("p", CoreSorts.Proposition)
         val q = parameter("q", CoreSorts.Proposition)
