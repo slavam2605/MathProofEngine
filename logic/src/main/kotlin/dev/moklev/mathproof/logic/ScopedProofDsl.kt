@@ -71,10 +71,7 @@ private object ScopedJustificationSupportRegistry {
 class AssumptionScope internal constructor(
     private val context: AssumptionContext,
 ) {
-    val assumption: ScopedFact
-        get() = context.assumptionFact
-
-    fun given(fact: ScopedFact): ScopedFact = context.useScopedFact(fact)
+    fun given(fact: ScopedFact): ScopedFact = context.referenceScopedFact(fact)
 
     fun given(fact: Fact): ScopedFact = context.useOuterFact(fact)
 
@@ -121,14 +118,14 @@ class AssumptionScope internal constructor(
         return current
     }
 
-    fun assume(assume: Expr, block: AssumptionScope.() -> ScopedFact): ScopedFact =
+    fun assume(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): ScopedFact =
         context.assume(assume, block)
 
-    fun contradiction(assume: Expr, block: AssumptionScope.() -> ScopedFact): ScopedFact =
+    fun contradiction(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): ScopedFact =
         context.contradiction(assume, block)
 }
 
-fun ProofBuilder.assume(assume: Expr, block: AssumptionScope.() -> ScopedFact): Fact {
+fun ProofBuilder.assume(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): Fact {
     requireProposition(assume, "Assumption")
     val assumptionContext = AssumptionContext(
         parent = null,
@@ -136,12 +133,12 @@ fun ProofBuilder.assume(assume: Expr, block: AssumptionScope.() -> ScopedFact): 
         statementPremises = declaredPremises(),
         arbitraryAllocator = this::arbitrary,
     )
-    val result = AssumptionScope(assumptionContext).block()
-    val resultInsideContext = assumptionContext.useScopedFact(result)
+    AssumptionScope(assumptionContext).block(assumptionContext.assumptionFact)
+    val resultInsideContext = assumptionContext.requireLastDerivedStep()
     return assumptionContext.compileIntoProofBuilder(this, resultInsideContext.stepId)
 }
 
-fun ProofBuilder.contradiction(assume: Expr, block: AssumptionScope.() -> ScopedFact): Fact {
+fun ProofBuilder.contradiction(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): Fact {
     val target = requireContradictionTarget(assume)
     val implication = this.assume(assume, block)
     val expectedImplication = assume implies target
@@ -195,6 +192,7 @@ internal class AssumptionContext(
     private val importedPremises = linkedMapOf<StatementPremise, ScopedFact>()
     private val importedAncestorFacts = linkedMapOf<ScopedFact, ScopedFact>()
     private var nextStepId = 0
+    private var lastStepId: Int? = null
 
     val assumptionFact: ScopedFact = addStep(
         claim = assumptionClaim,
@@ -216,6 +214,18 @@ internal class AssumptionContext(
                 dependsOnAssumption = false,
             )
         }
+    }
+
+    fun referenceScopedFact(fact: ScopedFact): ScopedFact {
+        if (fact.context === this) {
+            val sourceStep = stepById(fact.stepId)
+            return addStep(
+                claim = fact.claim,
+                origin = ScopedStepOrigin.ReusedScopedFact(sourceStep.id),
+                dependsOnAssumption = sourceStep.dependsOnAssumption,
+            )
+        }
+        return useScopedFact(fact)
     }
 
     fun useOuterFact(fact: Fact): ScopedFact = importedOuterFacts.getOrPut(fact) {
@@ -305,7 +315,7 @@ internal class AssumptionContext(
     fun hasFreeSymbolInStatementPremises(symbol: String): Boolean =
         statementPremises.any { premise -> premise.containsFreeSymbol(symbol) }
 
-    fun assume(assume: Expr, block: AssumptionScope.() -> ScopedFact): ScopedFact {
+    fun assume(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): ScopedFact {
         requireProposition(assume, "Assumption")
         val nested = AssumptionContext(
             parent = this,
@@ -313,12 +323,12 @@ internal class AssumptionContext(
             statementPremises = statementPremises,
             arbitraryAllocator = arbitraryAllocator,
         )
-        val result = AssumptionScope(nested).block()
-        val resultInsideNested = nested.useScopedFact(result)
+        AssumptionScope(nested).block(nested.assumptionFact)
+        val resultInsideNested = nested.requireLastDerivedStep()
         return nested.compileIntoContext(this, resultInsideNested.stepId)
     }
 
-    fun contradiction(assume: Expr, block: AssumptionScope.() -> ScopedFact): ScopedFact {
+    fun contradiction(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): ScopedFact {
         val target = requireContradictionTarget(assume)
         val implication = this.assume(assume, block)
         val expectedImplication = assume implies target
@@ -351,6 +361,17 @@ internal class AssumptionContext(
         ).compile(resultStepId)
     }
 
+    fun requireLastDerivedStep(): ScopedFact {
+        val resolvedLastStepId = requireNotNull(lastStepId) {
+            "Scoped assumption block did not emit any steps."
+        }
+        require(resolvedLastStepId != assumptionFact.stepId) {
+            "assume(...) block must contain at least one proof step."
+        }
+        val step = stepById(resolvedLastStepId)
+        return ScopedFact(this, step.id, step.claim)
+    }
+
     private fun addStep(
         claim: Expr,
         origin: ScopedStepOrigin,
@@ -366,6 +387,7 @@ internal class AssumptionContext(
         )
         steps += step
         stepsById[step.id] = step
+        lastStepId = step.id
         return ScopedFact(this, step.id, normalizedClaim)
     }
 
@@ -404,6 +426,10 @@ private sealed interface ScopedStepOrigin {
 
     data class ImportedAncestorFact(
         val fact: ScopedFact,
+    ) : ScopedStepOrigin
+
+    data class ReusedScopedFact(
+        val sourceStepId: Int,
     ) : ScopedStepOrigin
 
     data class DerivedGeneral(
@@ -491,6 +517,12 @@ private class DeductionCompiler<F>(
     private fun compileImplication(step: ScopedStep): F {
         if (step.origin is ScopedStepOrigin.Assumption) {
             return target.infer(LogicLibrary.implicationIdentity(assumption), emptyList())
+        }
+
+        if (step.origin is ScopedStepOrigin.ReusedScopedFact) {
+            return requireNotNull(implicationByStepId[step.origin.sourceStepId]) {
+                "Missing compiled implication for reused step ${step.origin.sourceStepId}."
+            }
         }
 
         if (!step.dependsOnAssumption) {
@@ -597,6 +629,7 @@ private class DeductionCompiler<F>(
             is ScopedStepOrigin.ImportedOuterFact -> target.givenOuterFact(origin.fact)
             is ScopedStepOrigin.ImportedPremise -> target.givenPremise(origin.premise)
             is ScopedStepOrigin.ImportedAncestorFact -> target.givenAncestorFact(origin.fact)
+            is ScopedStepOrigin.ReusedScopedFact -> replayRaw(origin.sourceStepId)
             is ScopedStepOrigin.DerivedGeneral -> target.infer(
                 origin.statement,
                 origin.premiseStepIds.map(::replayRaw),

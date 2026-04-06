@@ -8,6 +8,11 @@ import dev.moklev.mathproof.logic.LogicAxioms.modusPonens
 import dev.moklev.mathproof.model.CoreSorts
 
 object LogicLibrary {
+    /**
+     * `p, q, r: Proposition`
+     *
+     * `p, q, p -> q -> r ⊢ r`
+     */
     val chainModusPonens2 = statement("chain-modus-ponens-2") {
         val p = parameter("p", CoreSorts.Proposition)
         val q = parameter("q", CoreSorts.Proposition)
@@ -26,6 +31,11 @@ object LogicLibrary {
         }
     }
 
+    /**
+     * `p: Proposition`
+     *
+     * `p -> p`
+     */
     val implicationIdentity = statement("implication-identity") {
         val p = parameter("p", CoreSorts.Proposition)
 
@@ -43,75 +53,68 @@ object LogicLibrary {
         }
     }
 
-    val implicationFromConsequent = statement("implication-from-consequent") {
-        val p = parameter("p", CoreSorts.Proposition)
-        val q = parameter("q", CoreSorts.Proposition)
-
-        val qPremise = premise(q)
-        conclusion(p implies q)
-        proof {
-            val givenQ = given(qPremise)
-            val lift = infer(hilbertAxiom1(q, p))
-            infer(modusPonens(q, p implies q), givenQ, lift)
-        }
-    }
-
+    /**
+     * `p, q, r: Proposition`
+     *
+     * `(p -> q) -> (q -> r) -> p -> r`
+     */
     val hypotheticalSyllogism = statement("hypothetical-syllogism") {
         val p = parameter("p", CoreSorts.Proposition)
         val q = parameter("q", CoreSorts.Proposition)
         val r = parameter("r", CoreSorts.Proposition)
 
-        val pqPremise = premise(p implies q)
-        val qrPremise = premise(q implies r)
-        conclusion(p implies r)
+        val pq = p implies q
+        val qr = q implies r
+        val pr = p implies r
+
+        conclusion(pq implies (qr implies pr))
         proof {
-            val givenPq = given(pqPremise)
-            val givenQr = given(qrPremise)
-            val distribution = infer(hilbertAxiom2(p, q, r))
-            val liftQr = infer(hilbertAxiom1(q implies r, p))
-            val liftedQr = infer(
-                modusPonens(q implies r, p implies (q implies r)),
-                givenQr,
-                liftQr,
-            )
-            infer(
-                chainModusPonens2(p implies (q implies r), p implies q, p implies r),
-                liftedQr,
-                givenPq,
-                distribution,
-            )
+            assume(pq) { givenPq ->
+                assume(qr) { givenQr ->
+                    val distribution = infer(hilbertAxiom2(p, q, r))
+                    val liftQr = infer(hilbertAxiom1(qr, p))
+                    val liftedQr = infer(modusPonens(qr, p implies qr), givenQr, liftQr)
+                    val stepX = infer(modusPonens(p implies qr, pq implies pr), liftedQr, distribution)
+                    infer(modusPonens(pq, pr), givenPq, stepX)
+                }
+            }
         }
     }
 
+    /**
+     * `p, q: Proposition`
+     *
+     * `p -> (p -> q) -> q`
+     */
     val internalizedModusPonens = statement("internalized-modus-ponens") {
         val p = parameter("p", CoreSorts.Proposition)
         val q = parameter("q", CoreSorts.Proposition)
 
-        conclusion(p implies ((p implies q) implies q))
+        val pq = p implies q
+
+        conclusion(p implies (pq implies q))
         proof {
-            val projectPremise = infer(hilbertAxiom1(p, p implies q))
-            val identity = infer(implicationIdentity(p implies q))
-            val distribute = infer(hilbertAxiom2(p implies q, p, q))
+            val projectPremise = infer(hilbertAxiom1(p, pq))
+            val identity = infer(implicationIdentity(pq))
+            val distribute = infer(hilbertAxiom2(pq, p, q))
             val implicationBridge = infer(
-                modusPonens(
-                    identity.claim,
-                    ((p implies q) implies p) implies ((p implies q) implies q),
-                ),
+                modusPonens(identity.claim, (pq implies p) implies (pq implies q)),
                 identity,
-                distribute,
+                distribute
             )
-            infer(
-                hypotheticalSyllogism(
-                    p,
-                    (p implies q) implies p,
-                    (p implies q) implies q,
-                ),
+            applyByMpChain(
+                hypotheticalSyllogism(p, pq implies p, pq implies q),
                 projectPremise,
-                implicationBridge,
+                implicationBridge
             )
         }
     }
 
+    /**
+     * `p: Proposition`
+     *
+     * `!!p -> p`
+     */
     val doubleNegationElimination = statement("double-negation-elimination") {
         val p = parameter("p", CoreSorts.Proposition)
 
@@ -120,23 +123,28 @@ object LogicLibrary {
             val phi = infer(implicationIdentity(p)) // any tautology is needed here
             val step2 = infer(hilbertAxiom3(!p, !phi.claim))
             val step3 = infer(hilbertAxiom3(phi.claim, p))
-            val step4 = infer(hypotheticalSyllogism(
+            val step4 = applyByMpChain(hypotheticalSyllogism(
                 !!phi.claim implies !!p,
                 !p implies !phi.claim,
                 phi.claim implies p
             ), step2, step3)
             val step5 = infer(hilbertAxiom1(!!p, !!phi.claim))
-            val step6 = infer(hypotheticalSyllogism(
+            val step6 = applyByMpChain(hypotheticalSyllogism(
                 !!p, !!phi.claim implies !!p, phi.claim implies p
             ), step5, step4)
             val step7 = infer(internalizedModusPonens(phi.claim, p))
             val step8 = infer(modusPonens(phi.claim, (phi.claim implies p) implies p), phi, step7)
-            infer(hypotheticalSyllogism(
+            applyByMpChain(hypotheticalSyllogism(
                 !!p, phi.claim implies p, p
             ), step6, step8)
         }
     }
 
+    /**
+     * `p: Proposition`
+     *
+     * `p -> !!p`
+     */
     val doubleNegation = statement("double-negation") {
         val p = parameter("p", CoreSorts.Proposition)
 
@@ -148,62 +156,10 @@ object LogicLibrary {
         }
     }
 
-    val conjunctionFromPremises = statement("conjunction-from-premises") {
-        val p = parameter("p", CoreSorts.Proposition)
-        val q = parameter("q", CoreSorts.Proposition)
-
-        val pPremise = premise(p)
-        val qPremise = premise(q)
-        conclusion(p and q)
-        proof {
-            val givenP = given(pPremise)
-            val givenQ = given(qPremise)
-            val intro = infer(LogicAxioms.andIntroduction(p, q))
-            infer(
-                chainModusPonens2(p, q, p and q),
-                givenP,
-                givenQ,
-                intro,
-            )
-        }
-    }
-
-    val conjunctionLeftProjection = statement("conjunction-left-projection") {
-        val p = parameter("p", CoreSorts.Proposition)
-        val q = parameter("q", CoreSorts.Proposition)
-
-        val pairPremise = premise(p and q)
-        conclusion(p)
-        proof {
-            val givenPair = given(pairPremise)
-            val elimination = infer(LogicAxioms.andEliminationLeft(p, q))
-            infer(
-                modusPonens(p and q, p),
-                givenPair,
-                elimination,
-            )
-        }
-    }
-
-    val conjunctionRightProjection = statement("conjunction-right-projection") {
-        val p = parameter("p", CoreSorts.Proposition)
-        val q = parameter("q", CoreSorts.Proposition)
-
-        val pairPremise = premise(p and q)
-        conclusion(q)
-        proof {
-            val givenPair = given(pairPremise)
-            val elimination = infer(LogicAxioms.andEliminationRight(p, q))
-            infer(
-                modusPonens(p and q, q),
-                givenPair,
-                elimination,
-            )
-        }
-    }
-
     /**
-     * !p -> p -> q
+     * `p, q: Proposition`
+     *
+     * `!p -> p -> q`
      */
     val exFalso = statement("ex-falso-quodlibet") {
         val p = parameter("p", CoreSorts.Proposition)
@@ -213,18 +169,20 @@ object LogicLibrary {
         proof {
             val step1 = infer(hilbertAxiom1(!p, !q))
             val step2 = infer(hilbertAxiom3(p, q))
-            infer(hypotheticalSyllogism(!p, !q implies !p, p implies q), step1, step2)
+            applyByMpChain(hypotheticalSyllogism(!p, !q implies !p, p implies q), step1, step2)
         }
     }
 
     /**
-     * (!p -> p) -> p
+     * `p: Proposition`
+     *
+     * `(!p -> p) -> p`
      */
     val clavius = statement("clavius") {
         val p = parameter("p", CoreSorts.Proposition)
         conclusion((!p implies p) implies p)
         proof {
-            assume(!p implies p) {
+            assume(!p implies p) { assumption ->
                 val a = assumption.claim
                 val step2 = infer(exFalso(p, !a))
                 val step3 = infer(hilbertAxiom2(!p, p, !a))
@@ -237,65 +195,28 @@ object LogicLibrary {
         }
     }
 
-    val disjunctionLeftInjection = statement("disjunction-left-injection") {
+    /**
+     * `p, q: Proposition`
+     *
+     * `(p -> q) -> !q -> !p`
+     */
+    val contraposition = statement("contraposition") {
         val p = parameter("p", CoreSorts.Proposition)
         val q = parameter("q", CoreSorts.Proposition)
 
-        val pPremise = premise(p)
-        conclusion(p or q)
+        conclusion((p implies q) implies (!q implies !p))
         proof {
-            val givenP = given(pPremise)
-            val injection = infer(LogicAxioms.orIntroductionLeft(p, q))
-            infer(
-                modusPonens(p, p or q),
-                givenP,
-                injection,
-            )
-        }
-    }
-
-    val disjunctionRightInjection = statement("disjunction-right-injection") {
-        val p = parameter("p", CoreSorts.Proposition)
-        val q = parameter("q", CoreSorts.Proposition)
-
-        val qPremise = premise(q)
-        conclusion(p or q)
-        proof {
-            val givenQ = given(qPremise)
-            val injection = infer(LogicAxioms.orIntroductionRight(p, q))
-            infer(
-                modusPonens(q, p or q),
-                givenQ,
-                injection,
-            )
-        }
-    }
-
-    val disjunctionEliminationFromPremises = statement("disjunction-elimination-from-premises") {
-        val p = parameter("p", CoreSorts.Proposition)
-        val q = parameter("q", CoreSorts.Proposition)
-        val r = parameter("r", CoreSorts.Proposition)
-
-        val disjunctionPremise = premise(p or q)
-        val leftPremise = premise(p implies r)
-        val rightPremise = premise(q implies r)
-        conclusion(r)
-        proof {
-            val givenDisjunction = given(disjunctionPremise)
-            val givenLeft = given(leftPremise)
-            val givenRight = given(rightPremise)
-            val elimination = infer(LogicAxioms.orElimination(p, q, r))
-            val disjunctionCase = infer(
-                chainModusPonens2(p implies r, q implies r, (p or q) implies r),
-                givenLeft,
-                givenRight,
-                elimination,
-            )
-            infer(
-                modusPonens(p or q, r),
-                givenDisjunction,
-                disjunctionCase,
-            )
+            assume(p implies q) { pq ->
+                assume(!q) { notQ ->
+                    val nnPP = infer(doubleNegationElimination(p)) // !!p -> p
+                    val nnPQ = applyByMpChain(hypotheticalSyllogism(!!p, p, q), nnPP, pq) // !!p -> q
+                    val qnnQ = infer(doubleNegation(q)) // q -> !!q
+                    val nnPnnQ = applyByMpChain(hypotheticalSyllogism(!!p, q, !!q), nnPQ, qnnQ) // !!p -> !!q
+                    val h3 = infer(hilbertAxiom3(!q, !p)) // (!!p -> !!q) -> (!q -> !p)
+                    val nQnP = infer(modusPonens(!!p implies !!q, !q implies !p), nnPnnQ, h3) // !q -> !p
+                    infer(modusPonens(!q, !p), notQ, nQnP) // !p
+                }
+            }
         }
     }
 }

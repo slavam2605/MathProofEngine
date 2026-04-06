@@ -5,8 +5,11 @@ import dev.moklev.mathproof.core.sortVariable
 import dev.moklev.mathproof.core.statement
 import dev.moklev.mathproof.equality.EqualityLibrary
 import dev.moklev.mathproof.equality.eq
-import dev.moklev.mathproof.logic.LogicLibrary
+import dev.moklev.mathproof.logic.LogicAxioms.andEliminationLeft
+import dev.moklev.mathproof.logic.LogicAxioms.andEliminationRight
+import dev.moklev.mathproof.logic.LogicAxioms.andIntroduction
 import dev.moklev.mathproof.logic.and
+import dev.moklev.mathproof.logic.applyByMpChain
 import dev.moklev.mathproof.model.CoreSorts
 
 object SampleProofs {
@@ -18,13 +21,9 @@ object SampleProofs {
         conclusion(q and p)
         proof {
             val pair = given(pairPremise)
-            val right = infer(LogicLibrary.conjunctionRightProjection(p, q), pair)
-            val left = infer(LogicLibrary.conjunctionLeftProjection(p, q), pair)
-            infer(
-                LogicLibrary.conjunctionFromPremises(q, p),
-                right,
-                left,
-            )
+            val right = applyByMpChain(andEliminationRight(p, q), pair)
+            val left = applyByMpChain(andEliminationLeft(p, q), pair)
+            applyByMpChain(andIntroduction(q, p), right, left)
         }
     }
 

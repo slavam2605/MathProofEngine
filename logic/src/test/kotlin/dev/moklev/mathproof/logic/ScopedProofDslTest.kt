@@ -29,13 +29,29 @@ class ScopedProofDslTest {
         val theorem = statement("scoped-assume-identity") {
             conclusion(p implies p)
             proof {
-                assume(p) {
+                assume(p) { assumption ->
                     given(assumption)
                 }
             }
         }
 
         assertVerifies(theorem)
+    }
+
+    @Test
+    fun rejectsEmptyAssumeBlock() {
+        val p = constant("p", CoreSorts.Proposition)
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("scoped-assume-empty-block") {
+                conclusion(p implies p)
+                proof {
+                    assume(p) { _ -> }
+                }
+            }
+        }
+
+        assertTrue(error.message!!.contains("must contain at least one proof step"))
     }
 
     @Test
@@ -48,7 +64,7 @@ class ScopedProofDslTest {
             conclusion(p implies q)
             proof {
                 val givenPq = given(pqPremise)
-                assume(p) {
+                assume(p) { assumption ->
                     val givenAssumption = given(assumption)
                     val liftedPremise = given(givenPq)
                     infer(LogicAxioms.modusPonens(p, q), givenAssumption, liftedPremise)
@@ -85,7 +101,7 @@ class ScopedProofDslTest {
         val theorem = statement("apply-by-mp-chain-inside-assume") {
             conclusion(p implies p)
             proof {
-                assume(p) {
+                assume(p) { assumption ->
                     val givenP = given(assumption)
                     applyByMpChain(LogicLibrary.implicationIdentity(p), givenP)
                 }
@@ -103,9 +119,9 @@ class ScopedProofDslTest {
         val theorem = statement("nested-scoped-assume") {
             conclusion(p implies (q implies p))
             proof {
-                assume(p) {
+                assume(p) { assumption ->
                     val givenP = given(assumption)
-                    assume(q) {
+                    assume(q) { _ ->
                         given(givenP)
                     }
                 }
@@ -124,7 +140,7 @@ class ScopedProofDslTest {
             conclusion(p)
             proof {
                 val givenP = given(premiseP)
-                contradiction(assume = !p) {
+                contradiction(assume = !p) { _ ->
                     given(givenP)
                 }
             }
@@ -137,14 +153,23 @@ class ScopedProofDslTest {
     fun rejectsAssumptionDependentNonModusPonensStepInScopedCompiler() {
         val p = constant("p", CoreSorts.Proposition)
         val q = constant("q", CoreSorts.Proposition)
+        val implicationFromConsequent = statement("test-implication-from-consequent") {
+            val pPremise = premise(p)
+            conclusion(q implies p)
+            proof {
+                val givenP = given(pPremise)
+                val lift = infer(LogicAxioms.hilbertAxiom1(p, q))
+                infer(LogicAxioms.modusPonens(p, q implies p), givenP, lift)
+            }
+        }
 
         val error = assertFailsWith<IllegalArgumentException> {
             statement("scoped-assume-rejects-non-mp-dependent-step") {
                 conclusion(p implies (q implies p))
                 proof {
-                    assume(p) {
+                    assume(p) { assumption ->
                         val givenAssumption = given(assumption)
-                        infer(LogicLibrary.implicationFromConsequent(q, p), givenAssumption)
+                        infer(implicationFromConsequent(), givenAssumption)
                     }
                 }
             }
@@ -161,7 +186,7 @@ class ScopedProofDslTest {
             statement("scoped-contradiction-requires-negated-assumption") {
                 conclusion(p)
                 proof {
-                    contradiction(assume = p) {
+                    contradiction(assume = p) { assumption ->
                         given(assumption)
                     }
                 }

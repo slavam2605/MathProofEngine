@@ -6,6 +6,7 @@ import dev.moklev.mathproof.kernel.Fact
 import dev.moklev.mathproof.kernel.Justification
 import dev.moklev.mathproof.kernel.ProofBuilder
 import dev.moklev.mathproof.logic.AssumptionScope
+import dev.moklev.mathproof.logic.LogicAxioms.modusPonens
 import dev.moklev.mathproof.logic.ScopedAssumptionDependentCompilationContext
 import dev.moklev.mathproof.logic.ScopedFact
 import dev.moklev.mathproof.logic.ScopedJustificationSupport
@@ -119,10 +120,17 @@ private object UniversalGeneralizationScopedSupport : ScopedJustificationSupport
             assumptionToSource,
         )
         val distribution = context.infer(
-            FirstOrderAxioms.forallDistribution(context.assumption, quantifiedSourcePredicate),
-            generalizedAssumption,
+            FirstOrderAxioms.forallDistribution(context.assumption, quantifiedSourcePredicate)
         )
-        return distribution
+
+        return context.infer(
+            modusPonens(
+                generalizedAssumptionImplication,
+                context.assumption implies expectedConclusion,
+            ),
+            generalizedAssumption,
+            distribution,
+        )
     }
 }
 

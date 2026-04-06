@@ -4,61 +4,62 @@ import dev.moklev.mathproof.core.functionSort
 import dev.moklev.mathproof.core.lambda
 import dev.moklev.mathproof.core.sortVariable
 import dev.moklev.mathproof.core.statement
-import dev.moklev.mathproof.logic.LogicAxioms
+import dev.moklev.mathproof.logic.LogicAxioms.modusPonens
+import dev.moklev.mathproof.logic.LogicLibrary
+import dev.moklev.mathproof.logic.LogicLibrary.contraposition
+import dev.moklev.mathproof.logic.LogicLibrary.doubleNegationElimination
+import dev.moklev.mathproof.logic.LogicLibrary.hypotheticalSyllogism
+import dev.moklev.mathproof.logic.applyByMpChain
+import dev.moklev.mathproof.logic.assume
 import dev.moklev.mathproof.logic.implies
+import dev.moklev.mathproof.logic.not
 import dev.moklev.mathproof.model.CoreSorts
 
 object FirstOrderLibrary {
-    val universalImpliesExistentialForWitness = statement("universal-implies-existential-for-witness") {
+    /**
+     * `p: S -> Proposition`
+     *
+     * `(!∃x. !p(x)) -> ∀x. p(x)`
+     */
+    val negationExistsNegation = statement("forall-negation") {
         val s = sortVariable("S")
-        val predicate = parameter("predicate", functionSort(s, returns = CoreSorts.Proposition))
-        val witness = parameter("witness", s)
+        val p = parameter("p", functionSort(s, returns = CoreSorts.Proposition))
 
-        val allPredicate = premise(FirstOrderFunctions.ForAll(predicate))
-        conclusion(FirstOrderFunctions.Exists(predicate))
+        conclusion(!exists("x", s) { x -> !p(x) } implies forall("x", s) { x -> p(x) })
         proof {
-            val universal = given(allPredicate)
-            val witnessFact = infer(FirstOrderAxioms.forallInstantiation(predicate, witness), universal)
-            infer(FirstOrderAxioms.existsIntroduction(predicate, witness), witnessFact)
+            assume(!exists("x", s) { x -> !p(x) }) { notExists ->
+                forAllByGeneralization("a", s) { a ->
+                    contradiction(!p(a)) { notPa ->
+                        val step1 = applyByMpChain(FirstOrderAxioms.existsIntroduction(
+                            lambda("x", s) { x -> !p(x) }, a
+                        ), notPa)
+                        applyByMpChain(LogicLibrary.exFalso(step1.claim, p(a)), notExists, step1)
+                    }
+                }
+            }
+
         }
     }
 
-    val existentialEliminationFromPremises = statement("existential-elimination-from-premises") {
+    /**
+     * `p: S -> Proposition`
+     *
+     * `(!∀x. p(x)) -> ∃x. !p(x)`
+     */
+    val forallNegation = statement("forall-negation") {
         val s = sortVariable("S")
-        val predicate = parameter("predicate", functionSort(s, returns = CoreSorts.Proposition))
-        val consequence = parameter("consequence", CoreSorts.Proposition)
+        val p = parameter("p", functionSort(s, returns = CoreSorts.Proposition))
 
-        val implicationPremise = premise(FirstOrderFunctions.ForAll(lambda("x", s) { x ->
-            predicate(x) implies consequence
-        }))
-        val existencePremise = premise(FirstOrderFunctions.Exists(predicate))
-        conclusion(consequence)
+        conclusion(!forall("x", s) { x -> p(x) } implies exists("x", s) { x -> !p(x) })
         proof {
-            val universalImplication = given(implicationPremise)
-            val existential = given(existencePremise)
-            val implicationToConsequence = infer(
-                FirstOrderAxioms.existsEliminationSchema(predicate, consequence),
-                universalImplication,
-            )
-            infer(LogicAxioms.modusPonens(FirstOrderFunctions.Exists(predicate), consequence), existential, implicationToConsequence)
-        }
-    }
+            val fa = forall("x", s) { x -> p(x) }
+            val ex = exists("x", s) { x -> !p(x) }
 
-    val guardedUniversalFromPremises = statement("guarded-universal-from-premises") {
-        val s = sortVariable("S")
-        val guard = parameter("guard", CoreSorts.Proposition)
-        val predicate = parameter("predicate", functionSort(s, returns = CoreSorts.Proposition))
-
-        val guardedPremise = premise(FirstOrderFunctions.ForAll(lambda("x", s) { x ->
-            guard implies predicate(x)
-        }))
-        val guardPremise = premise(guard)
-        conclusion(FirstOrderFunctions.ForAll(predicate))
-        proof {
-            val guardedUniversal = given(guardedPremise)
-            val guardFact = given(guardPremise)
-            val implicationToUniversal = infer(FirstOrderAxioms.forallDistribution(guard, predicate), guardedUniversal)
-            infer(LogicAxioms.modusPonens(guard, FirstOrderFunctions.ForAll(predicate)), guardFact, implicationToUniversal)
+            val notExists = infer(negationExistsNegation(p))
+            val contr = infer(contraposition(!ex, fa))
+            val nFnnE = infer(modusPonens(notExists.claim, !fa implies !!ex), notExists, contr)
+            val doubleN = infer(doubleNegationElimination(ex))
+            applyByMpChain(hypotheticalSyllogism(!fa, !!ex, ex), nFnnE, doubleN)
         }
     }
 }

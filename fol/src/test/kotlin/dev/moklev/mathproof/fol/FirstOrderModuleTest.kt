@@ -13,6 +13,7 @@ import dev.moklev.mathproof.kernel.ProofStep
 import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.logic.LogicAxioms
 import dev.moklev.mathproof.logic.LogicLibrary
+import dev.moklev.mathproof.logic.applyByMpChain
 import dev.moklev.mathproof.logic.assume
 import dev.moklev.mathproof.logic.implies
 import dev.moklev.mathproof.model.Bound
@@ -64,19 +65,19 @@ class FirstOrderModuleTest {
         val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
         val witness = constant("a", elementSort)
 
-        val broken = statement("broken-forall-instantiation") {
-            val somePredicate = premise(FirstOrderFunctions.Exists(predicate))
-            conclusion(predicate(witness))
-            proof {
-                val existential = given(somePredicate)
-                infer(FirstOrderAxioms.forallInstantiation(predicate, witness), existential)
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("broken-forall-instantiation") {
+                val somePredicate = premise(FirstOrderFunctions.Exists(predicate))
+                conclusion(predicate(witness))
+                proof {
+                    val existential = given(somePredicate)
+                    applyByMpChain(FirstOrderAxioms.forallInstantiation(predicate, witness), existential)
+                }
             }
         }
 
-        val result = verifier.verify(broken)
-
-        assertFalse(result.isValid)
-        assertTrue(result.issues.any { it.message.contains("forall(") && it.message.contains("exists(") })
+        assertTrue(error.message!!.contains("forall("))
+        assertTrue(error.message!!.contains("exists("))
     }
 
     @Test
@@ -89,7 +90,7 @@ class FirstOrderModuleTest {
             conclusion(guard implies FirstOrderFunctions.ForAll(predicate))
             proof {
                 val universal = given(premiseAll)
-                infer(FirstOrderAxioms.forallDistribution(guard, predicate), universal)
+                applyByMpChain(FirstOrderAxioms.forallDistribution(guard, predicate), universal)
             }
         }
 
@@ -120,8 +121,8 @@ class FirstOrderModuleTest {
             proof {
                 val universalImplication = given(implicationPremise)
                 val existential = given(existencePremise)
-                val implicationToResult = infer(
-                    FirstOrderAxioms.existsEliminationSchema(predicate, result),
+                val implicationToResult = applyByMpChain(
+                    FirstOrderAxioms.existsElimination(predicate, result),
                     universalImplication,
                 )
                 infer(LogicAxioms.modusPonens(FirstOrderFunctions.Exists(predicate), result), existential, implicationToResult)
@@ -137,7 +138,7 @@ class FirstOrderModuleTest {
         val invalidPsi = Bound(index = 0, sort = CoreSorts.Proposition)
 
         val error = assertFailsWith<IllegalArgumentException> {
-            FirstOrderAxioms.existsEliminationSchema(predicate, invalidPsi)
+            FirstOrderAxioms.existsElimination(predicate, invalidPsi)
         }
 
         assertTrue(error.message!!.contains("must not be free in psi"))
@@ -153,8 +154,8 @@ class FirstOrderModuleTest {
             conclusion(FirstOrderFunctions.Exists(predicate))
             proof {
                 val universal = given(universalPremise)
-                val witnessFact = infer(FirstOrderAxioms.forallInstantiation(predicate, witness), universal)
-                infer(FirstOrderAxioms.existsIntroduction(predicate, witness), witnessFact)
+                val witnessFact = applyByMpChain(FirstOrderAxioms.forallInstantiation(predicate, witness), universal)
+                applyByMpChain(FirstOrderAxioms.existsIntroduction(predicate, witness), witnessFact)
             }
         }
 
@@ -173,7 +174,7 @@ class FirstOrderModuleTest {
             proof {
                 val universalImplication = given(implicationPremise)
                 val guardFact = given(guardPremise)
-                val implicationToUniversal = infer(FirstOrderAxioms.forallDistribution(guard, predicate), universalImplication)
+                val implicationToUniversal = applyByMpChain(FirstOrderAxioms.forallDistribution(guard, predicate), universalImplication)
                 infer(LogicAxioms.modusPonens(guard, FirstOrderFunctions.ForAll(predicate)), guardFact, implicationToUniversal)
             }
         }
@@ -187,25 +188,25 @@ class FirstOrderModuleTest {
         val q = function("Q", elementSort, returns = CoreSorts.Proposition)
         val result = constant("result", CoreSorts.Proposition)
 
-        val broken = statement("broken-exists-elimination-premise") {
-            val implicationPremise = premise(forall("x", elementSort) { q(it) implies result })
-            val existencePremise = premise(FirstOrderFunctions.Exists(p))
-            conclusion(result)
-            proof {
-                val universalImplication = given(implicationPremise)
-                val existential = given(existencePremise)
-                val implicationToResult = infer(
-                    FirstOrderAxioms.existsEliminationSchema(p, result),
-                    universalImplication,
-                )
-                infer(LogicAxioms.modusPonens(FirstOrderFunctions.Exists(p), result), existential, implicationToResult)
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("broken-exists-elimination-premise") {
+                val implicationPremise = premise(forall("x", elementSort) { q(it) implies result })
+                val existencePremise = premise(FirstOrderFunctions.Exists(p))
+                conclusion(result)
+                proof {
+                    val universalImplication = given(implicationPremise)
+                    val existential = given(existencePremise)
+                    val implicationToResult = applyByMpChain(
+                        FirstOrderAxioms.existsElimination(p, result),
+                        universalImplication,
+                    )
+                    infer(LogicAxioms.modusPonens(FirstOrderFunctions.Exists(p), result), existential, implicationToResult)
+                }
             }
         }
 
-        val resultCheck = verifier.verify(broken)
-
-        assertFalse(resultCheck.isValid)
-        assertTrue(resultCheck.issues.any { it.message.contains("P(") && it.message.contains("Q(") })
+        assertTrue(error.message!!.contains("P("))
+        assertTrue(error.message!!.contains("Q("))
     }
 
     @Test
@@ -250,7 +251,7 @@ class FirstOrderModuleTest {
         val theorem = statement("forall-generalization-inside-assume") {
             conclusion(guard implies forall("u", elementSort) { guard })
             proof {
-                assume(guard) {
+                assume(guard) { assumption ->
                     forAllByGeneralization("x", elementSort) { _ ->
                         given(assumption)
                     }
@@ -271,7 +272,7 @@ class FirstOrderModuleTest {
                 conclusion(goal implies goal)
                 proof {
                     val x = arbitrary("x", elementSort)
-                    assume(predicate(x)) {
+                    assume(predicate(x)) { assumption ->
                         generalizeForAll(x, given(assumption))
                     }
                 }
@@ -296,7 +297,7 @@ class FirstOrderModuleTest {
                 premise(predicate(x))
                 conclusion(guard implies guard)
                 proof {
-                    assume(guard) {
+                    assume(guard) { assumption ->
                         generalizeForAll(x, given(assumption))
                     }
                 }
