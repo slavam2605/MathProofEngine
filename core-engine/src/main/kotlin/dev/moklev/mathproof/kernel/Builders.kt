@@ -49,6 +49,7 @@ private object BuildContextIds {
 class ProofBuilder internal constructor(
     private val statementContextId: Int,
     private val statementParameterNames: Set<String> = emptySet(),
+    private val statementPremises: List<Expr> = emptyList(),
     private val proofContextId: Int = BuildContextIds.next(),
 ) {
     private val steps = mutableListOf<ProofStep>()
@@ -116,6 +117,8 @@ class ProofBuilder internal constructor(
         steps = steps.toList(),
         arbitraryVariables = arbitraryVariablesBySymbol.values.toList(),
     )
+
+    fun declaredPremises(): List<Expr> = statementPremises.toList()
 
     private fun addStep(label: String, claim: Expr, justification: Justification): Fact {
         val normalizedClaim = claim.betaNormalize()
@@ -193,6 +196,7 @@ class StatementBuilder(private val name: String) {
             ProofBuilder(
                 statementContextId = statementContextId,
                 statementParameterNames = parameters.keys.toSet(),
+                statementPremises = premises.toList(),
             ).apply(block).build(),
         )
     }

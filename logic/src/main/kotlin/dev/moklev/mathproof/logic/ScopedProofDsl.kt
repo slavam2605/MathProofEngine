@@ -1,19 +1,72 @@
 package dev.moklev.mathproof.logic
 
 import dev.moklev.mathproof.kernel.Fact
+import dev.moklev.mathproof.kernel.Justification
 import dev.moklev.mathproof.kernel.ProofBuilder
 import dev.moklev.mathproof.kernel.StatementCall
 import dev.moklev.mathproof.kernel.StatementPremise
 import dev.moklev.mathproof.model.Apply
+import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.Expr
+import dev.moklev.mathproof.model.Free
+import dev.moklev.mathproof.model.Lambda
+import dev.moklev.mathproof.model.Sort
 import dev.moklev.mathproof.model.betaNormalize
 import dev.moklev.mathproof.model.requireProposition
+import kotlin.reflect.KClass
 
 class ScopedFact internal constructor(
     internal val context: AssumptionContext,
     internal val stepId: Int,
     val claim: Expr,
 )
+
+interface ScopedAssumptionDependentCompilationContext<F> {
+    val assumption: Expr
+    val conclusion: Expr
+    val premiseStepIds: List<Int>
+
+    fun premiseClaim(stepId: Int): Expr
+    fun implication(stepId: Int): F
+    fun infer(statement: StatementCall, vararg premises: F): F
+    fun justify(claim: Expr, justification: Justification, vararg premises: F): F
+    fun sameProposition(left: Expr, right: Expr): Boolean
+}
+
+interface ScopedJustificationSupport<J : Justification> {
+    val justificationClass: KClass<J>
+
+    fun bindToPremises(justification: J, premiseLabels: List<String>): J = justification
+
+    fun <F> compileAssumptionDependent(
+        context: ScopedAssumptionDependentCompilationContext<F>,
+        justification: J,
+    ): F? = null
+}
+
+fun registerScopedJustificationSupport(
+    support: ScopedJustificationSupport<out Justification>,
+) {
+    ScopedJustificationSupportRegistry.register(support)
+}
+
+private object ScopedJustificationSupportRegistry {
+    private val supportByClass = linkedMapOf<KClass<out Justification>, ScopedJustificationSupport<out Justification>>()
+
+    @Synchronized
+    fun register(support: ScopedJustificationSupport<out Justification>) {
+        supportByClass[support.justificationClass] = support
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun <J : Justification> supportFor(justification: J): ScopedJustificationSupport<J>? =
+        supportByClass[justification::class] as? ScopedJustificationSupport<J>
+
+    fun bindToPremises(justification: Justification, premiseLabels: List<String>): Justification {
+        val support = supportFor(justification) ?: return justification
+        return support.bindToPremises(justification, premiseLabels)
+    }
+}
 
 class AssumptionScope internal constructor(
     private val context: AssumptionContext,
@@ -29,6 +82,17 @@ class AssumptionScope internal constructor(
 
     fun infer(statement: StatementCall, vararg premises: ScopedFact): ScopedFact =
         context.infer(statement, premises.toList())
+
+    fun justify(claim: Expr, justification: Justification, vararg premises: ScopedFact): ScopedFact =
+        context.justify(claim, justification, premises.toList())
+
+    fun arbitrary(name: String, sort: Sort): Free = context.arbitrary(name, sort)
+
+    fun hasFreeSymbolInOpenAssumptions(symbol: String): Boolean =
+        context.hasFreeSymbolInOpenAssumptions(symbol)
+
+    fun hasFreeSymbolInStatementPremises(symbol: String): Boolean =
+        context.hasFreeSymbolInStatementPremises(symbol)
 
     fun applyByMpChain(statement: StatementCall, vararg facts: ScopedFact): ScopedFact {
         require(statement.premises.isEmpty()) {
@@ -66,7 +130,12 @@ class AssumptionScope internal constructor(
 
 fun ProofBuilder.assume(assume: Expr, block: AssumptionScope.() -> ScopedFact): Fact {
     requireProposition(assume, "Assumption")
-    val assumptionContext = AssumptionContext(parent = null, assumptionClaim = assume)
+    val assumptionContext = AssumptionContext(
+        parent = null,
+        assumptionClaim = assume,
+        statementPremises = declaredPremises(),
+        arbitraryAllocator = this::arbitrary,
+    )
     val result = AssumptionScope(assumptionContext).block()
     val resultInsideContext = assumptionContext.useScopedFact(result)
     return assumptionContext.compileIntoProofBuilder(this, resultInsideContext.stepId)
@@ -117,6 +186,8 @@ fun ProofBuilder.applyByMpChain(statement: StatementCall, vararg facts: Fact): F
 internal class AssumptionContext(
     private val parent: AssumptionContext?,
     private val assumptionClaim: Expr,
+    private val statementPremises: List<Expr>,
+    private val arbitraryAllocator: (String, Sort) -> Free,
 ) {
     private val steps = mutableListOf<ScopedStep>()
     private val stepsById = linkedMapOf<Int, ScopedStep>()
@@ -203,9 +274,45 @@ internal class AssumptionContext(
         )
     }
 
+    fun justify(claim: Expr, justification: Justification, premises: List<ScopedFact>): ScopedFact {
+        val resolvedPremises = premises.map(::useScopedFact)
+        val premiseStepIds = resolvedPremises.map { it.stepId }
+        val dependsOnAssumption = premiseStepIds.any { stepById(it).dependsOnAssumption }
+
+        return addStep(
+            claim = claim,
+            origin = ScopedStepOrigin.DerivedExternal(
+                justification = justification,
+                premiseStepIds = premiseStepIds,
+            ),
+            dependsOnAssumption = dependsOnAssumption,
+        )
+    }
+
+    fun arbitrary(name: String, sort: Sort): Free = arbitraryAllocator(name, sort)
+
+    fun hasFreeSymbolInOpenAssumptions(symbol: String): Boolean {
+        var cursor: AssumptionContext? = this
+        while (cursor != null) {
+            if (cursor.assumptionClaim.containsFreeSymbol(symbol)) {
+                return true
+            }
+            cursor = cursor.parent
+        }
+        return false
+    }
+
+    fun hasFreeSymbolInStatementPremises(symbol: String): Boolean =
+        statementPremises.any { premise -> premise.containsFreeSymbol(symbol) }
+
     fun assume(assume: Expr, block: AssumptionScope.() -> ScopedFact): ScopedFact {
         requireProposition(assume, "Assumption")
-        val nested = AssumptionContext(parent = this, assumptionClaim = assume)
+        val nested = AssumptionContext(
+            parent = this,
+            assumptionClaim = assume,
+            statementPremises = statementPremises,
+            arbitraryAllocator = arbitraryAllocator,
+        )
         val result = AssumptionScope(nested).block()
         val resultInsideNested = nested.useScopedFact(result)
         return nested.compileIntoContext(this, resultInsideNested.stepId)
@@ -308,6 +415,11 @@ private sealed interface ScopedStepOrigin {
         val statement: StatementCall,
         val premiseStepIds: List<Int>,
     ) : ScopedStepOrigin
+
+    data class DerivedExternal(
+        val justification: Justification,
+        val premiseStepIds: List<Int>,
+    ) : ScopedStepOrigin
 }
 
 private interface CompilationTarget<F> {
@@ -315,6 +427,8 @@ private interface CompilationTarget<F> {
     fun givenOuterFact(fact: Fact): F
     fun givenAncestorFact(fact: ScopedFact): F
     fun infer(statement: StatementCall, premises: List<F>): F
+    fun justify(claim: Expr, justification: Justification, premises: List<F>): F
+    fun labelOf(fact: F): String?
 }
 
 private class ProofBuilderCompilationTarget(
@@ -330,6 +444,11 @@ private class ProofBuilderCompilationTarget(
 
     override fun infer(statement: StatementCall, premises: List<Fact>): Fact =
         builder.infer(statement, *premises.toTypedArray())
+
+    override fun justify(claim: Expr, justification: Justification, premises: List<Fact>): Fact =
+        builder.justify(claim, justification, *premises.toTypedArray())
+
+    override fun labelOf(fact: Fact): String = fact.label
 }
 
 private class AssumptionContextCompilationTarget(
@@ -343,6 +462,11 @@ private class AssumptionContextCompilationTarget(
 
     override fun infer(statement: StatementCall, premises: List<ScopedFact>): ScopedFact =
         context.infer(statement, premises)
+
+    override fun justify(claim: Expr, justification: Justification, premises: List<ScopedFact>): ScopedFact =
+        context.justify(claim, justification, premises)
+
+    override fun labelOf(fact: ScopedFact): String? = null
 }
 
 private class DeductionCompiler<F>(
@@ -381,9 +505,17 @@ private class DeductionCompiler<F>(
             )
         }
 
-        val origin = step.origin as? ScopedStepOrigin.DerivedModusPonens
-            ?: error("Assumption-dependent step '${step.claim}' is not derived by modus ponens.")
+        return when (val origin = step.origin) {
+            is ScopedStepOrigin.DerivedModusPonens -> compileAssumptionDependentModusPonens(step, origin)
+            is ScopedStepOrigin.DerivedExternal -> compileAssumptionDependentExternal(step, origin)
+            else -> error("Assumption-dependent step '${step.claim}' has unsupported origin '${step.origin::class.simpleName}'.")
+        }
+    }
 
+    private fun compileAssumptionDependentModusPonens(
+        step: ScopedStep,
+        origin: ScopedStepOrigin.DerivedModusPonens,
+    ): F {
         val premiseStepId = origin.premiseStepIds[0]
         val implicationStepId = origin.premiseStepIds[1]
         val premiseStep = stepById(premiseStepId)
@@ -413,6 +545,49 @@ private class DeductionCompiler<F>(
         )
     }
 
+    private fun compileAssumptionDependentExternal(
+        step: ScopedStep,
+        origin: ScopedStepOrigin.DerivedExternal,
+    ): F {
+        val support = ScopedJustificationSupportRegistry.supportFor(origin.justification)
+            ?: throw IllegalArgumentException(
+                "Scoped assumption compiler currently supports assumption-dependent steps only through modus ponens; justification '${origin.justification.displayName}' depends on the local assumption.",
+            )
+
+        val context = object : ScopedAssumptionDependentCompilationContext<F> {
+            override val assumption: Expr = this@DeductionCompiler.assumption
+            override val conclusion: Expr = step.claim
+            override val premiseStepIds: List<Int> = origin.premiseStepIds
+
+            override fun premiseClaim(stepId: Int): Expr = stepById(stepId).claim
+
+            override fun implication(stepId: Int): F =
+                requireNotNull(implicationByStepId[stepId]) {
+                    "Missing compiled implication for premise step $stepId."
+                }
+
+            override fun infer(statement: StatementCall, vararg premises: F): F =
+                target.infer(statement, premises.toList())
+
+            override fun justify(claim: Expr, justification: Justification, vararg premises: F): F {
+                val premiseList = premises.toList()
+                return target.justify(
+                    claim = claim,
+                    justification = bindJustificationToPremises(justification, premiseList),
+                    premises = premiseList,
+                )
+            }
+
+            override fun sameProposition(left: Expr, right: Expr): Boolean =
+                left.betaNormalize() == right.betaNormalize()
+        }
+
+        return support.compileAssumptionDependent(context, origin.justification)
+            ?: throw IllegalArgumentException(
+                "Scoped assumption compiler currently supports assumption-dependent steps only through modus ponens; justification '${origin.justification.displayName}' depends on the local assumption.",
+            )
+    }
+
     private fun replayRaw(stepId: Int): F {
         rawByStepId[stepId]?.let { return it }
         val step = stepById(stepId)
@@ -430,9 +605,28 @@ private class DeductionCompiler<F>(
                 origin.statement,
                 origin.premiseStepIds.map(::replayRaw),
             )
+            is ScopedStepOrigin.DerivedExternal -> {
+                val rawPremises = origin.premiseStepIds.map(::replayRaw)
+                target.justify(
+                    claim = step.claim,
+                    justification = bindJustificationToPremises(origin.justification, rawPremises),
+                    premises = rawPremises,
+                )
+            }
         }
         rawByStepId[stepId] = rebuilt
         return rebuilt
+    }
+
+    private fun bindJustificationToPremises(justification: Justification, premises: List<F>): Justification {
+        val premiseLabels = premises.map { fact -> target.labelOf(fact) }
+        if (premiseLabels.any { label -> label == null }) {
+            return justification
+        }
+        return ScopedJustificationSupportRegistry.bindToPremises(
+            justification = justification,
+            premiseLabels = premiseLabels.filterNotNull(),
+        )
     }
 
     private fun stepById(stepId: Int): ScopedStep =
@@ -467,6 +661,13 @@ private fun Expr.implicationPartsOrNull(): ImplicationParts? {
         left = innerApply.argument,
         right = outerApply.argument,
     )
+}
+
+private fun Expr.containsFreeSymbol(symbol: String): Boolean = when (this) {
+    is Free -> this.symbol == symbol
+    is Bound -> false
+    is Lambda -> body.containsFreeSymbol(symbol)
+    is Apply -> function.containsFreeSymbol(symbol) || argument.containsFreeSymbol(symbol)
 }
 
 private fun sameProposition(left: Expr, right: Expr): Boolean =

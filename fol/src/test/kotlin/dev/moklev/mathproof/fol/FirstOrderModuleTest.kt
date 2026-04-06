@@ -13,6 +13,7 @@ import dev.moklev.mathproof.kernel.ProofStep
 import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.logic.LogicAxioms
 import dev.moklev.mathproof.logic.LogicLibrary
+import dev.moklev.mathproof.logic.assume
 import dev.moklev.mathproof.logic.implies
 import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.CoreSorts
@@ -240,6 +241,69 @@ class FirstOrderModuleTest {
         }
 
         assertVerifies(theorem)
+    }
+
+    @Test
+    fun appliesUniversalGeneralizationInsideAssumeWithAssumptionDependentSource() {
+        val guard = constant("guard", CoreSorts.Proposition)
+
+        val theorem = statement("forall-generalization-inside-assume") {
+            conclusion(guard implies forall("u", elementSort) { guard })
+            proof {
+                assume(guard) {
+                    forAllByGeneralization("x", elementSort) { _ ->
+                        given(assumption)
+                    }
+                }
+            }
+        }
+
+        assertVerifies(theorem)
+    }
+
+    @Test
+    fun rejectsScopedGeneralizationWhenVariableAppearsInOpenAssumption() {
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+        val goal = constant("goal", CoreSorts.Proposition)
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("bad-scoped-forall-generalization-open-assumption-capture") {
+                conclusion(goal implies goal)
+                proof {
+                    val x = arbitrary("x", elementSort)
+                    assume(predicate(x)) {
+                        generalizeForAll(x, given(assumption))
+                    }
+                }
+            }
+        }
+
+        assertTrue(error.message!!.contains("open assumption"))
+    }
+
+    @Test
+    fun rejectsScopedGeneralizationWhenVariableAppearsInStatementPremise() {
+        val x = Free(
+            symbol = "#manual-premise-x",
+            sort = elementSort,
+            displayName = "x",
+        )
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+        val guard = constant("guard", CoreSorts.Proposition)
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("bad-scoped-forall-generalization-premise-capture") {
+                premise(predicate(x))
+                conclusion(guard implies guard)
+                proof {
+                    assume(guard) {
+                        generalizeForAll(x, given(assumption))
+                    }
+                }
+            }
+        }
+
+        assertTrue(error.message!!.contains("statement premise"))
     }
 
     @Test

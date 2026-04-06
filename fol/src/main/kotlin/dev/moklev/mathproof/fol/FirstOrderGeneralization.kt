@@ -5,6 +5,12 @@ import dev.moklev.mathproof.kernel.ExternalJustificationValidator
 import dev.moklev.mathproof.kernel.Fact
 import dev.moklev.mathproof.kernel.Justification
 import dev.moklev.mathproof.kernel.ProofBuilder
+import dev.moklev.mathproof.logic.AssumptionScope
+import dev.moklev.mathproof.logic.ScopedAssumptionDependentCompilationContext
+import dev.moklev.mathproof.logic.ScopedFact
+import dev.moklev.mathproof.logic.ScopedJustificationSupport
+import dev.moklev.mathproof.logic.implies
+import dev.moklev.mathproof.logic.registerScopedJustificationSupport
 import dev.moklev.mathproof.model.Apply
 import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.Expr
@@ -65,11 +71,76 @@ object UniversalGeneralizationValidator : ExternalJustificationValidator<Univers
 val firstOrderJustificationValidators: List<ExternalJustificationValidator<out Justification>> =
     listOf(UniversalGeneralizationValidator)
 
+private const val SCOPED_GENERALIZATION_SOURCE_PLACEHOLDER = "__scoped-generalization-source__"
+
+private object UniversalGeneralizationScopedSupport : ScopedJustificationSupport<UniversalGeneralization> {
+    override val justificationClass = UniversalGeneralization::class
+
+    override fun bindToPremises(
+        justification: UniversalGeneralization,
+        premiseLabels: List<String>,
+    ): UniversalGeneralization {
+        require(premiseLabels.size == 1) {
+            "Universal generalization expects exactly one source premise, but got ${premiseLabels.size}."
+        }
+        return justification.copy(sourceLabel = premiseLabels.single())
+    }
+
+    override fun <F> compileAssumptionDependent(
+        context: ScopedAssumptionDependentCompilationContext<F>,
+        justification: UniversalGeneralization,
+    ): F {
+        require(context.premiseStepIds.size == 1) {
+            "Scoped universal generalization expected exactly one premise step, but got ${context.premiseStepIds.size}."
+        }
+        val sourceStepId = context.premiseStepIds.single()
+        val sourceClaim = context.premiseClaim(sourceStepId)
+        val expectedConclusion = forAllGeneralizedClaim(justification.variable, sourceClaim)
+        require(context.sameProposition(expectedConclusion, context.conclusion)) {
+            "Scoped universal generalization expected conclusion '$expectedConclusion', but got '${context.conclusion}'."
+        }
+        require(!context.assumption.containsFreeSymbol(justification.variable.symbol)) {
+            "Universal generalization over '${justification.variable.displayName}' is invalid because this variable appears in an open assumption."
+        }
+
+        val assumptionToSource = context.implication(sourceStepId)
+        val generalizedAssumptionImplication = forAllGeneralizedClaim(
+            variable = justification.variable,
+            sourceClaim = context.assumption implies sourceClaim,
+        )
+        val quantifiedSourcePredicate = expectedConclusion.forAllPredicateOrNull()
+            ?: throw IllegalArgumentException(
+                "Scoped universal generalization expected a forall-claim, but got '$expectedConclusion'.",
+            )
+
+        val generalizedAssumption = context.justify(
+            claim = generalizedAssumptionImplication,
+            justification = justification.copy(sourceLabel = SCOPED_GENERALIZATION_SOURCE_PLACEHOLDER),
+            assumptionToSource,
+        )
+        val distribution = context.infer(
+            FirstOrderAxioms.forallDistribution(context.assumption, quantifiedSourcePredicate),
+            generalizedAssumption,
+        )
+        return distribution
+    }
+}
+
+private val scopedUniversalGeneralizationSupportRegistered: Boolean = run {
+    registerScopedJustificationSupport(UniversalGeneralizationScopedSupport)
+    true
+}
+
+private fun ensureScopedUniversalGeneralizationSupportRegistered() {
+    check(scopedUniversalGeneralizationSupportRegistered)
+}
+
 fun ProofBuilder.generalizeForAll(
     label: String,
     variable: Free,
     source: Fact,
 ): Fact {
+    ensureScopedUniversalGeneralizationSupportRegistered()
     val generalizedClaim = forAllGeneralizedClaim(variable, source)
     return justify(
         label = label,
@@ -86,7 +157,10 @@ fun ProofBuilder.generalizeForAll(
     variable: Free,
     source: Fact,
 ): Fact = justify(
-    claim = forAllGeneralizedClaim(variable, source),
+    claim = run {
+        ensureScopedUniversalGeneralizationSupportRegistered()
+        forAllGeneralizedClaim(variable, source)
+    },
     justification = UniversalGeneralization(
         sourceLabel = source.label,
         variable = variable,
@@ -94,11 +168,35 @@ fun ProofBuilder.generalizeForAll(
     source,
 )
 
+fun AssumptionScope.generalizeForAll(
+    variable: Free,
+    source: ScopedFact,
+): ScopedFact {
+    ensureScopedUniversalGeneralizationSupportRegistered()
+    require(!hasFreeSymbolInStatementPremises(variable.symbol)) {
+        "Universal generalization over '${variable.displayName}' is invalid because this variable appears in a statement premise."
+    }
+    require(!hasFreeSymbolInOpenAssumptions(variable.symbol)) {
+        "Universal generalization over '${variable.displayName}' is invalid because this variable appears in an open assumption."
+    }
+
+    val sourceInScope = given(source)
+    return justify(
+        claim = forAllGeneralizedClaim(variable, sourceInScope.claim),
+        justification = UniversalGeneralization(
+            sourceLabel = SCOPED_GENERALIZATION_SOURCE_PLACEHOLDER,
+            variable = variable,
+        ),
+        sourceInScope,
+    )
+}
+
 fun ProofBuilder.forAllByGeneralization(
     variableName: String,
     sort: Sort,
     proveAt: (Free) -> Fact,
 ): Fact {
+    ensureScopedUniversalGeneralizationSupportRegistered()
     val variable = arbitrary(variableName, sort)
     val source = proveAt(variable)
     return generalizeForAll(variable, source)
@@ -110,9 +208,21 @@ fun ProofBuilder.forAllByGeneralization(
     sort: Sort,
     proveAt: (Free) -> Fact,
 ): Fact {
+    ensureScopedUniversalGeneralizationSupportRegistered()
     val variable = arbitrary(variableName, sort)
     val source = proveAt(variable)
     return generalizeForAll(label, variable, source)
+}
+
+fun AssumptionScope.forAllByGeneralization(
+    variableName: String,
+    sort: Sort,
+    proveAt: (Free) -> ScopedFact,
+): ScopedFact {
+    ensureScopedUniversalGeneralizationSupportRegistered()
+    val variable = arbitrary(variableName, sort)
+    val source = proveAt(variable)
+    return generalizeForAll(variable, source)
 }
 
 private fun forAllGeneralizedClaim(variable: Free, source: Fact): Expr {
