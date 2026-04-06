@@ -16,6 +16,11 @@ sealed interface ExprNotation {
         val symbol: String,
         val precedence: Int,
     ) : ExprNotation
+
+    data class Binder(
+        val symbol: String,
+        val precedence: Int,
+    ) : ExprNotation
 }
 
 fun interface ExprNotationProvider {

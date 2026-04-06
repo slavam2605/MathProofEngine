@@ -6,6 +6,9 @@ import dev.moklev.mathproof.core.lambda
 import dev.moklev.mathproof.core.sortVariable
 import dev.moklev.mathproof.model.CoreSorts
 import dev.moklev.mathproof.model.Expr
+import dev.moklev.mathproof.model.ExprNotation
+import dev.moklev.mathproof.model.ExprNotationRegistry
+import dev.moklev.mathproof.model.Lambda
 import dev.moklev.mathproof.model.Sort
 
 object FirstOrderFunctions {
@@ -13,6 +16,26 @@ object FirstOrderFunctions {
 
     val ForAll = function("forall", functionSort(operandSort, returns = CoreSorts.Proposition), returns = CoreSorts.Proposition)
     val Exists = function("exists", functionSort(operandSort, returns = CoreSorts.Proposition), returns = CoreSorts.Proposition)
+
+    init {
+        ExprNotationRegistry.register { head, arguments ->
+            when {
+                head == ForAll || head == Exists -> {
+                    if (arguments.size != 1) return@register null
+                    if (arguments[0] !is Lambda) return@register null
+
+                    val symbol = when (head) {
+                        ForAll -> "∀"
+                        Exists -> "∃"
+                        else -> error("Unexpected head: $head")
+                    }
+
+                    ExprNotation.Binder(symbol, precedence = 85)
+                }
+                else -> null
+            }
+        }
+    }
 }
 
 fun forall(

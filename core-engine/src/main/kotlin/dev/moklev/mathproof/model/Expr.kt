@@ -176,6 +176,12 @@ private fun Apply.renderApplication(
                 parentPrecedence = parentPrecedence,
                 boundNames = boundNames,
             )
+            is ExprNotation.Binder -> renderWithBinderNotation(
+                arguments = arguments,
+                notation = notation,
+                parentPrecedence = parentPrecedence,
+                boundNames = boundNames,
+            )
         }
     }
 
@@ -203,12 +209,22 @@ private fun renderWithInfixNotation(
         Associativity.RIGHT -> notation.precedence + 1
         Associativity.LEFT -> notation.precedence
     }
-    val left = arguments[0].renderWithContext(leftPrecedence, boundNames)
+    val left = renderInfixOperand(
+        expression = arguments[0],
+        parentPrecedence = leftPrecedence,
+        boundNames = boundNames,
+        forceWrapBinderLike = true,
+    )
     val rightPrecedence = when (notation.associativity) {
         Associativity.RIGHT -> notation.precedence - 1
         Associativity.LEFT -> notation.precedence + 1
     }
-    val right = arguments[1].renderWithContext(rightPrecedence, boundNames)
+    val right = renderInfixOperand(
+        expression = arguments[1],
+        parentPrecedence = rightPrecedence,
+        boundNames = boundNames,
+        forceWrapBinderLike = notation.associativity != Associativity.RIGHT,
+    )
     val rendered = "$left ${notation.symbol} $right"
     return if (notation.precedence < parentPrecedence) "($rendered)" else rendered
 }
@@ -226,6 +242,41 @@ private fun renderWithPrefixNotation(
 
     val rendered = "${notation.symbol}${arguments.single().renderWithContext(notation.precedence, boundNames)}"
     return if (notation.precedence < parentPrecedence) "($rendered)" else rendered
+}
+
+private fun renderWithBinderNotation(
+    arguments: List<Expr>,
+    notation: ExprNotation.Binder,
+    parentPrecedence: Int,
+    boundNames: List<String>,
+): String {
+    val lambda = arguments.singleOrNull() as? Lambda
+    if (lambda == null) {
+        val fallback = "${notation.symbol}(${arguments.joinToString(", ") { it.renderWithContext(0, boundNames) }})"
+        return if (notation.precedence < parentPrecedence) "($fallback)" else fallback
+    }
+
+    val parameterName = freshRenderedName(
+        preferred = lambda.parameterHint ?: "x",
+        boundNames = boundNames + lambda.body.freeDisplayNames(),
+    )
+    val renderedBody = lambda.body.renderWithContext(notation.precedence, boundNames + parameterName)
+    val rendered = "${notation.symbol}$parameterName. $renderedBody"
+    return if (notation.precedence < parentPrecedence) "($rendered)" else rendered
+}
+
+private fun renderInfixOperand(
+    expression: Expr,
+    parentPrecedence: Int,
+    boundNames: List<String>,
+    forceWrapBinderLike: Boolean,
+): String {
+    val rendered = expression.renderWithContext(parentPrecedence, boundNames)
+    return if (forceWrapBinderLike && expression.isBinderLikeOrPrefixedBinderExpr()) {
+        rendered.ensureWrappedInParentheses()
+    } else {
+        rendered
+    }
 }
 
 private fun renderAsFunctionCall(
@@ -252,6 +303,24 @@ private fun Expr.flattenApplication(): Pair<Expr, List<Expr>> {
     }
     arguments.reverse()
     return current to arguments
+}
+
+private fun Expr.isBinderLikeOrPrefixedBinderExpr(): Boolean = when (this) {
+    is Lambda -> true
+    is Apply -> {
+        val (head, arguments) = flattenApplication()
+        when (ExprNotationRegistry.notationFor(head, arguments)) {
+            is ExprNotation.Binder -> true
+            is ExprNotation.Prefix -> arguments.singleOrNull()?.isBinderLikeOrPrefixedBinderExpr() == true
+            else -> false
+        }
+    }
+    else -> false
+}
+
+private fun String.ensureWrappedInParentheses(): String {
+    if (startsWith("(") && endsWith(")")) return this
+    return "($this)"
 }
 
 private fun freshRenderedName(

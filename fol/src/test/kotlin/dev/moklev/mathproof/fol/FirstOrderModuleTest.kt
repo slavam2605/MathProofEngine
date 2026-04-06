@@ -15,7 +15,9 @@ import dev.moklev.mathproof.logic.LogicAxioms
 import dev.moklev.mathproof.logic.LogicLibrary
 import dev.moklev.mathproof.logic.applyByMpChain
 import dev.moklev.mathproof.logic.assume
+import dev.moklev.mathproof.logic.and
 import dev.moklev.mathproof.logic.implies
+import dev.moklev.mathproof.logic.not
 import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.CoreSorts
 import dev.moklev.mathproof.model.Free
@@ -55,9 +57,23 @@ class FirstOrderModuleTest {
     @Test
     fun rendersQuantifierExpressionsWithRegisteredNotation() {
         val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+        val q = function("Q", elementSort, returns = CoreSorts.Proposition)
+        val result = constant("result", CoreSorts.Proposition)
+        val quantifier = forall("x", elementSort) { predicate(it) }
 
-        assertEquals("forall(\\x. P(x))", forall("x", elementSort) { predicate(it) }.toString())
-        assertEquals("exists(\\x. P(x))", exists("x", elementSort) { predicate(it) }.toString())
+        assertEquals("∀x. P(x)", quantifier.toString())
+        assertEquals("∃x. P(x)", exists("x", elementSort) { predicate(it) }.toString())
+        assertEquals("!!∀x. P(x)", (!(!quantifier)).toString())
+        assertEquals("(∀x. P(x)) -> result", (quantifier implies result).toString())
+        assertEquals("(∀x. P(x)) -> ∀x. Q(x)", (quantifier implies forall("x", elementSort) { q(it) }).toString())
+        assertEquals("(∀x. P(x)) and (∀x. Q(x))", (quantifier and forall("x", elementSort) { q(it) }).toString())
+        assertEquals(
+            "(!∃x. !P(x)) -> !∃x. !Q(x)",
+            (
+                !exists("x", elementSort) { !predicate(it) } implies
+                    !exists("x", elementSort) { !q(it) }
+                ).toString()
+        )
     }
 
     @Test
