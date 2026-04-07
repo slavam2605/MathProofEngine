@@ -92,6 +92,29 @@ class ProofBuilder internal constructor(
     fun justify(claim: Expr, justification: Justification, vararg facts: Fact): Fact =
         justify(nextAutoLabel("step"), claim, justification, *facts)
 
+    fun todoAssume(
+        claim: Expr,
+        note: String? = null,
+    ): Fact = todoAssume(
+        label = nextAutoLabel("todo"),
+        claim = claim,
+        note = note,
+    )
+
+    fun todoAssume(
+        label: String,
+        claim: Expr,
+        note: String? = null,
+    ): Fact {
+        val normalizedClaim = claim.betaNormalize()
+        requireProposition(normalizedClaim, "todoAssume claim")
+        return addStep(
+            label = label,
+            claim = normalizedClaim,
+            justification = TodoAssumption(note),
+        )
+    }
+
     fun arbitrary(name: String, sort: Sort): Free {
         require(name !in statementParameterNames) {
             "Arbitrary variable '$name' conflicts with statement parameter '$name'. Choose a distinct name."

@@ -10,7 +10,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class ScopedProofDslTest {
-    private val verifier = ProofVerifier()
+    private val verifier = ProofVerifier(failOnWarnings = true)
 
     private fun assertVerifies(statement: StatementDefinition) {
         val result = verifier.verify(statement)

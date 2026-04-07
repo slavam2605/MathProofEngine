@@ -34,7 +34,7 @@ class ProofEvidenceDslTest {
         }
 
         assertIs<ProofProvided>(statement.support)
-        val verification = ProofVerifier().verify(statement)
+        val verification = ProofVerifier(failOnWarnings = true).verify(statement)
         assertTrue(verification.isValid, verification.describeIssues())
     }
 }

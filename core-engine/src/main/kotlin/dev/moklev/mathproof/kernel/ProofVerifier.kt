@@ -8,6 +8,7 @@ import dev.moklev.mathproof.model.validationIssues
 
 class ProofVerifier(
     private val externalJustificationValidators: List<ExternalJustificationValidator<out Justification>> = emptyList(),
+    private val failOnWarnings: Boolean = true,
 ) {
     private val verificationCache = mutableMapOf<StatementDefinition, VerificationResult>()
     private val verificationStack = mutableSetOf<StatementDefinition>()
@@ -26,19 +27,24 @@ class ProofVerifier(
                         message = "Recursive statement verification detected for '${statement.name}'.",
                     ),
                 ),
+                warnings = emptyList(),
             )
         }
 
         try {
             val structureIssues = validateStatementStructure(statement)
-            val proofIssues = when (val support = statement.support) {
-                is AssumedTrue -> emptyList()
+            val proofResult = when (val support = statement.support) {
+                is AssumedTrue -> VerificationResult(statement, issues = emptyList(), warnings = emptyList())
                 is ProofProvided -> verifyProof(
                     statement = statement,
                     proof = support.proof,
-                ).issues
+                )
             }
-            val result = VerificationResult(statement, structureIssues + proofIssues)
+            val result = VerificationResult(
+                statement = statement,
+                issues = structureIssues + proofResult.issues + strictWarningIssues(proofResult.warnings),
+                warnings = proofResult.warnings,
+            )
 
             verificationCache[statement] = result
             return result
@@ -168,6 +174,7 @@ class ProofVerifier(
                         }
                     }
                 }
+                is TodoAssumption -> Unit
                 else -> {
                     val validator = externalValidatorFor(justification)
                     if (validator == null) {
@@ -202,17 +209,26 @@ class ProofVerifier(
         val provenSteps = linkedMapOf<String, Expr>()
         val failedStepMessages = linkedMapOf<String, String>()
         val issues = mutableListOf<VerificationIssue>()
+        val warnings = mutableListOf<VerificationWarning>()
 
         proof.steps.forEachIndexed { index, step ->
-            val issue = validateStep(step, provenSteps, failedStepMessages, statement, proof)
-            if (issue == null) {
+            val validation = validateStep(step, provenSteps, failedStepMessages, statement, proof)
+            validation.warnings.forEach { warningMessage ->
+                warnings += VerificationWarning(
+                    stepIndex = index + 1,
+                    stepLabel = step.label,
+                    message = warningMessage,
+                )
+            }
+
+            if (validation.issue == null) {
                 provenSteps[step.label] = step.claim
             } else {
-                failedStepMessages.putIfAbsent(step.label, issue)
+                failedStepMessages.putIfAbsent(step.label, validation.issue)
                 issues += VerificationIssue(
                     stepIndex = index + 1,
                     stepLabel = step.label,
-                    message = issue,
+                    message = validation.issue,
                 )
             }
         }
@@ -232,7 +248,11 @@ class ProofVerifier(
             )
         }
 
-        return VerificationResult(statement, issues)
+        return VerificationResult(
+            statement = statement,
+            issues = issues,
+            warnings = warnings,
+        )
     }
 
     private fun validateStep(
@@ -241,10 +261,18 @@ class ProofVerifier(
         failedStepMessages: Map<String, String>,
         statement: StatementDefinition,
         proof: ProofScript,
-    ): String? = when (val justification = step.justification) {
-        is PremiseReference -> validatePremiseReference(step, statement, justification)
+    ): StepValidationOutcome = when (val justification = step.justification) {
+        is PremiseReference -> StepValidationOutcome(
+            issue = validatePremiseReference(step, statement, justification),
+        )
         is StatementApplication -> validateStatementApplication(step, provenSteps, failedStepMessages, justification)
-        else -> validateExternalJustification(step, statement, proof, provenSteps, failedStepMessages, justification)
+        is TodoAssumption -> StepValidationOutcome(
+            issue = null,
+            warnings = listOf(todoAssumptionWarning(step.claim, justification)),
+        )
+        else -> StepValidationOutcome(
+            issue = validateExternalJustification(step, statement, proof, provenSteps, failedStepMessages, justification),
+        )
     }
 
     private fun validatePremiseReference(
@@ -267,40 +295,63 @@ class ProofVerifier(
         provenSteps: Map<String, Expr>,
         failedStepMessages: Map<String, String>,
         justification: StatementApplication,
-    ): String? {
+    ): StepValidationOutcome {
         val statement = justification.statement
         val supportResult = verify(statement)
         if (!supportResult.isValid) {
             val firstIssue = supportResult.issues.firstOrNull()
             val details = firstIssue?.let { " First issue: $it" } ?: ""
-            return "Statement '${statement.name}' is not verified and cannot be used yet.$details"
+            return StepValidationOutcome(
+                issue = "Statement '${statement.name}' is not verified and cannot be used yet.$details",
+            )
         }
 
         val statementCall = try {
             statement.instantiate(justification.arguments)
         } catch (error: IllegalArgumentException) {
-            return error.message ?: "Invalid application of statement '${statement.name}'."
+            return StepValidationOutcome(
+                issue = error.message ?: "Invalid application of statement '${statement.name}'.",
+            )
         }
 
         if (statementCall.premises.size != justification.premiseLabels.size) {
-            return "Statement '${statement.name}' expects ${statementCall.premises.size} premise steps, but got ${justification.premiseLabels.size}."
+            return StepValidationOutcome(
+                issue = "Statement '${statement.name}' expects ${statementCall.premises.size} premise steps, but got ${justification.premiseLabels.size}.",
+            )
         }
 
         justification.premiseLabels.zip(statementCall.premises).forEachIndexed { index, (label, expectedPremise) ->
             val actualPremise = provenSteps[label]
-                ?: return failedStepMessages[label]?.let { _ ->
-                    "Premise step '$label' for statement '${statement.name}' failed earlier."
-                } ?: "Unknown premise step '$label' for statement '${statement.name}'."
+                ?: return StepValidationOutcome(
+                    issue = failedStepMessages[label]?.let { _ ->
+                        "Premise step '$label' for statement '${statement.name}' failed earlier."
+                    } ?: "Unknown premise step '$label' for statement '${statement.name}'.",
+                )
             if (!sameProposition(actualPremise, expectedPremise)) {
-                return "Premise ${index + 1} for statement '${statement.name}' expected '$expectedPremise', but step '$label' proves '$actualPremise'."
+                return StepValidationOutcome(
+                    issue = "Premise ${index + 1} for statement '${statement.name}' expected '$expectedPremise', but step '$label' proves '$actualPremise'.",
+                )
             }
         }
 
-        return if (sameProposition(statementCall.conclusion, step.claim)) {
+        val issue = if (sameProposition(statementCall.conclusion, step.claim)) {
             null
         } else {
             "Statement '${statement.name}' concludes '${statementCall.conclusion}', not '${step.claim}'."
         }
+        val warnings = if (issue == null && supportResult.warnings.isNotEmpty()) {
+            listOf(
+                "Statement '${statement.name}' is verified with ${supportResult.warnings.size} warning(s). " +
+                    "First warning: ${supportResult.warnings.first()}",
+            )
+        } else {
+            emptyList()
+        }
+
+        return StepValidationOutcome(
+            issue = issue,
+            warnings = warnings,
+        )
     }
 
     private fun validateExternalJustification(
@@ -324,6 +375,38 @@ class ProofVerifier(
         return validator.validateStep(context, justification)
     }
 
+    private fun todoAssumptionWarning(
+        claim: Expr,
+        justification: TodoAssumption,
+    ): String = buildString {
+        append("TODO assumption used: ")
+        append(claim)
+        justification.note?.takeIf { note -> note.isNotBlank() }?.let { note ->
+            append(". Note: ")
+            append(note)
+        }
+    }
+
+    private data class StepValidationOutcome(
+        val issue: String?,
+        val warnings: List<String> = emptyList(),
+    )
+
+    private fun strictWarningIssues(
+        warnings: List<VerificationWarning>,
+    ): List<VerificationIssue> {
+        if (!failOnWarnings) {
+            return emptyList()
+        }
+        return warnings.map { warning ->
+            VerificationIssue(
+                stepIndex = warning.stepIndex,
+                stepLabel = warning.stepLabel,
+                message = "Strict mode rejects warning: ${warning.message}",
+            )
+        }
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun <J : Justification> externalValidatorFor(
         justification: J,
@@ -342,6 +425,7 @@ class ProofVerifier(
 data class VerificationResult(
     val statement: StatementDefinition,
     val issues: List<VerificationIssue>,
+    val warnings: List<VerificationWarning> = emptyList(),
 ) {
     val isValid: Boolean
         get() = issues.isEmpty()
@@ -363,9 +447,49 @@ data class VerificationResult(
             }
         }
     }
+
+    fun describeWarnings(): String = if (warnings.isEmpty()) {
+        "Verification of '${statement.name}' has no warnings."
+    } else {
+        buildString {
+            append("Verification of '${statement.name}' has ")
+            append(warnings.size)
+            append(" warning")
+            if (warnings.size != 1) {
+                append("s")
+            }
+            append(":")
+            warnings.forEach { warning ->
+                append("\n- ")
+                append(warning)
+            }
+        }
+    }
 }
 
 data class VerificationIssue(
+    val stepIndex: Int?,
+    val stepLabel: String?,
+    val message: String,
+) {
+    override fun toString(): String = buildString {
+        if (stepIndex != null) {
+            append("step ")
+            append(stepIndex)
+        } else {
+            append("statement")
+        }
+        if (stepLabel != null) {
+            append(" [")
+            append(stepLabel)
+            append("]")
+        }
+        append(": ")
+        append(message)
+    }
+}
+
+data class VerificationWarning(
     val stepIndex: Int?,
     val stepLabel: String?,
     val message: String,

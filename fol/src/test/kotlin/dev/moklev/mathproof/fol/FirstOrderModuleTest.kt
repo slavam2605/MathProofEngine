@@ -31,7 +31,10 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class FirstOrderModuleTest {
-    private val verifier = ProofVerifier(firstOrderJustificationValidators)
+    private val verifier = ProofVerifier(
+        externalJustificationValidators = firstOrderJustificationValidators,
+        failOnWarnings = true,
+    )
     private val elementSort = NamedSort("Element")
 
     private fun assertVerifies(statement: StatementDefinition) {

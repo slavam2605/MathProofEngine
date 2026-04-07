@@ -17,7 +17,9 @@ import dev.moklev.mathproof.testutils.discoverStatements
 import kotlin.test.*
 
 class ProofVerifierTest {
-    private val verifier = ProofVerifier()
+    private val verifier = ProofVerifier(
+        failOnWarnings = true,
+    )
 
     private fun assertVerifies(statement: StatementDefinition) {
         val result = verifier.verify(statement)

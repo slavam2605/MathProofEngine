@@ -5,6 +5,7 @@ import dev.moklev.mathproof.kernel.Justification
 import dev.moklev.mathproof.kernel.ProofBuilder
 import dev.moklev.mathproof.kernel.StatementCall
 import dev.moklev.mathproof.kernel.StatementPremise
+import dev.moklev.mathproof.kernel.TodoAssumption
 import dev.moklev.mathproof.model.Apply
 import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.Expr
@@ -82,6 +83,14 @@ class AssumptionScope internal constructor(
 
     fun justify(claim: Expr, justification: Justification, vararg premises: ScopedFact): ScopedFact =
         context.justify(claim, justification, premises.toList())
+
+    fun todoAssume(
+        claim: Expr,
+        note: String? = null,
+    ): ScopedFact = justify(
+        claim = claim,
+        justification = TodoAssumption(note),
+    )
 
     fun arbitrary(name: String, sort: Sort): Free = context.arbitrary(name, sort)
 

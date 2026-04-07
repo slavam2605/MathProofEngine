@@ -6,7 +6,10 @@ import dev.moklev.mathproof.kernel.ProofVerifier
 import dev.moklev.mathproof.kernel.prettyPrint
 
 fun main() {
-    val verifier = ProofVerifier(firstOrderJustificationValidators)
+    val verifier = ProofVerifier(
+        externalJustificationValidators = firstOrderJustificationValidators,
+        failOnWarnings = false,
+    )
 
     SampleProofs.all.forEach { statement ->
         val result = verifier.verify(statement)
@@ -14,6 +17,9 @@ fun main() {
 
         println("${statement.name}: $status")
         println(statement.prettyPrint())
+        if (result.warnings.isNotEmpty()) {
+            println(result.describeWarnings())
+        }
         println()
 
         if (!result.isValid) {

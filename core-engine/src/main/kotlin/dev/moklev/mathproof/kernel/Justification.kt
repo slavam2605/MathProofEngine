@@ -16,6 +16,12 @@ data class StatementApplication(
     val premiseLabels: List<String>,
 ) : Justification
 
+data class TodoAssumption(
+    val note: String? = null,
+) : Justification {
+    override val displayName: String = "todo-assume"
+}
+
 interface ExternalJustificationValidator<J : Justification> {
     val justificationClass: KClass<J>
 
