@@ -41,10 +41,10 @@ object SampleProofs {
         proof {
             val givenXy = given(xy)
             val givenZy = given(zy)
-            val yz = infer(EqualityLibrary.symmetry(z, y), givenZy)
-            val fxFy = infer(EqualityLibrary.congruence(f, x, y), givenXy)
-            val fyFz = infer(EqualityLibrary.congruence(f, y, z), yz)
-            infer(EqualityLibrary.transitivity(f(x), f(y), f(z)), fxFy, fyFz)
+            val yz = applyByMpChain(EqualityLibrary.symmetry(z, y), givenZy)
+            val fxFy = applyByMpChain(EqualityLibrary.congruence(f, x, y), givenXy)
+            val fyFz = applyByMpChain(EqualityLibrary.congruence(f, y, z), yz)
+            applyByMpChain(EqualityLibrary.transitivity(f(x), f(y), f(z)), fxFy, fyFz)
         }
     }
 

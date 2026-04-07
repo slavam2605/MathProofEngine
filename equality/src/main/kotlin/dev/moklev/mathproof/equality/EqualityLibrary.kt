@@ -5,43 +5,60 @@ import dev.moklev.mathproof.core.lambda
 import dev.moklev.mathproof.core.sortVariable
 import dev.moklev.mathproof.core.statement
 import dev.moklev.mathproof.logic.LogicAxioms.modusPonens
+import dev.moklev.mathproof.logic.assume
+import dev.moklev.mathproof.logic.implies
 
 object EqualityLibrary {
+    /**
+     * `x, y: S`
+     *
+     * `(x = y) -> (y = x)`
+     */
     val symmetry = statement("equality-symmetric") {
         val s = sortVariable("S")
         val x = parameter("x", s)
         val y = parameter("y", s)
 
-        val xy = premise(x eq y)
-        conclusion(y eq x)
+        conclusion((x eq y) implies (y eq x))
         proof {
-            val xy = given(xy)
-            val f = lambda("t", s) { t -> t eq x }
-            val step1 = infer(EqualityAxioms.substitution(f, x, y), xy)
-            val step2 = infer(EqualityAxioms.reflexivity(x))
-            infer(modusPonens(x eq x, y eq x), step2, step1)
+            assume(x eq y) { xy ->
+                val f = lambda("t", s) { t -> t eq x }
+                val step1 = applyByMpChain(EqualityAxioms.substitution(f, x, y), xy)
+                val step2 = infer(EqualityAxioms.reflexivity(x))
+                infer(modusPonens(x eq x, y eq x), step2, step1)
+            }
         }
     }
 
+    /**
+     * `x, y, z: S`
+     *
+     * `(x = y) -> (y = z) -> (x = z)`
+     */
     val transitivity = statement("equality-transitive") {
         val s = sortVariable("S")
         val x = parameter("x", s)
         val y = parameter("y", s)
         val z = parameter("z", s)
 
-        val xy = premise(x eq y)
-        val yz = premise(y eq z)
-        conclusion(x eq z)
+        conclusion((x eq y) implies ((y eq z) implies (x eq z)))
         proof {
-            val xy = given(xy)
-            val yz = given(yz)
-            val yx = infer(symmetry(x, y), xy)
-            val f = lambda("t", s) { t -> t eq z }
-            val step4 = infer(EqualityAxioms.substitution(f, y, x), yx)
-            infer(modusPonens(y eq z, x eq z), yz, step4)
+            assume(x eq y) { xy ->
+                assume(y eq z) { yz ->
+                    val yx = applyByMpChain(symmetry(x, y), xy)
+                    val f = lambda("t", s) { t -> t eq z }
+                    val step4 = applyByMpChain(EqualityAxioms.substitution(f, y, x), yx)
+                    infer(modusPonens(y eq z, x eq z), yz, step4)
+                }
+            }
         }
     }
 
+    /**
+     * `f: S -> T, x, y: S`
+     *
+     * `(x = y) -> (f(x) = f(y))`
+     */
     val congruence = statement("equality-congruence") {
         val s = sortVariable("S")
         val t = sortVariable("T")
@@ -49,14 +66,14 @@ object EqualityLibrary {
         val x = parameter("x", s)
         val y = parameter("y", s)
 
-        val xy = premise(x eq y)
-        conclusion(f(x) eq f(y))
+        conclusion((x eq y) implies (f(x) eq f(y)))
         proof {
-            val xy = given(xy)
-            val fn = lambda("t", s) { t -> f(x) eq f(t) }
-            val step2 = infer(EqualityAxioms.substitution(fn, x, y), xy)
-            val step3 = infer(EqualityAxioms.reflexivity(f(x)))
-            infer(modusPonens(f(x) eq f(x), f(x) eq f(y)), step3, step2)
+            assume(x eq y) { xy ->
+                val fn = lambda("t", s) { t -> f(x) eq f(t) }
+                val step2 = applyByMpChain(EqualityAxioms.substitution(fn, x, y), xy)
+                val step3 = infer(EqualityAxioms.reflexivity(f(x)))
+                infer(modusPonens(f(x) eq f(x), f(x) eq f(y)), step3, step2)
+            }
         }
     }
 }

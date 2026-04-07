@@ -4,10 +4,11 @@ import dev.moklev.mathproof.core.constant
 import dev.moklev.mathproof.core.statement
 import dev.moklev.mathproof.kernel.ProofVerifier
 import dev.moklev.mathproof.kernel.StatementDefinition
+import dev.moklev.mathproof.logic.applyByMpChain
 import dev.moklev.mathproof.model.NamedSort
 import dev.moklev.mathproof.testutils.discoverStatements
 import kotlin.test.Test
-import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class EqualityModuleTest {
@@ -41,21 +42,22 @@ class EqualityModuleTest {
         val y = constant("y", scalar)
         val z = constant("z", scalar)
 
-        val broken = statement("broken-equality-bridge") {
-            val xy = premise(x eq y)
-            val zy = premise(z eq y)
-            conclusion(x eq z)
-            proof {
-                val givenXy = given(xy)
-                val givenZy = given(zy)
-                infer("bad", EqualityLibrary.transitivity(x, y, z), givenXy, givenZy)
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("broken-equality-bridge") {
+                val xy = premise(x eq y)
+                val zy = premise(z eq y)
+                conclusion(x eq z)
+                proof {
+                    val givenXy = given(xy)
+                    val givenZy = given(zy)
+                    applyByMpChain(EqualityLibrary.transitivity(x, y, z), givenXy, givenZy)
+                }
             }
         }
 
-        val result = verifier.verify(broken)
-
-        assertFalse(result.isValid)
-        assertTrue(result.issues.any { it.message.contains("Premise 2") && it.message.contains("y = z") })
+        assertTrue(error.message!!.contains("applyByMpChain fact 2 mismatch"))
+        assertTrue(error.message!!.contains("expected 'y = z'"))
+        assertTrue(error.message!!.contains("got 'z = y'"))
     }
 
     @Test
@@ -65,18 +67,19 @@ class EqualityModuleTest {
         val y = constant("y", scalar)
         val z = constant("z", scalar)
 
-        val broken = statement("broken-equality-transitive-premises") {
-            val xy = premise(x eq y)
-            conclusion(x eq z)
-            proof {
-                val givenXy = given(xy)
-                infer(EqualityLibrary.transitivity(x, y, z), givenXy, givenXy)
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("broken-equality-transitive-premises") {
+                val xy = premise(x eq y)
+                conclusion(x eq z)
+                proof {
+                    val givenXy = given(xy)
+                    applyByMpChain(EqualityLibrary.transitivity(x, y, z), givenXy, givenXy)
+                }
             }
         }
 
-        val result = verifier.verify(broken)
-
-        assertFalse(result.isValid)
-        assertTrue(result.issues.any { it.message.contains("expected 'y = z'") && it.message.contains("x = y") })
+        assertTrue(error.message!!.contains("applyByMpChain fact 2 mismatch"))
+        assertTrue(error.message!!.contains("expected 'y = z'"))
+        assertTrue(error.message!!.contains("got 'x = y'"))
     }
 }
