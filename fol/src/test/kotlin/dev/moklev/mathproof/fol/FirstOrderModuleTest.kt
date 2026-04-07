@@ -3,6 +3,7 @@ package dev.moklev.mathproof.fol
 import dev.moklev.mathproof.core.constant
 import dev.moklev.mathproof.core.function
 import dev.moklev.mathproof.core.functionSort
+import dev.moklev.mathproof.core.lambda
 import dev.moklev.mathproof.core.statement
 import dev.moklev.mathproof.kernel.ArbitraryVariable
 import dev.moklev.mathproof.kernel.PremiseReference
@@ -158,6 +159,77 @@ class FirstOrderModuleTest {
         }
 
         assertTrue(error.message!!.contains("must not be free in psi"))
+    }
+
+    @Test
+    fun eliminatesExistentialPremiseWithHelper() {
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+        val result = constant("result", CoreSorts.Proposition)
+        val implicationPredicate = lambda("x", elementSort) { x -> predicate(x) implies result }
+
+        val theorem = statement("uses-exists-elimination-helper") {
+            val implicationPremise = premise(forall("x", elementSort) { predicate(it) implies result })
+            val existencePremise = premise(FirstOrderFunctions.Exists(predicate))
+            conclusion(result)
+            proof {
+                val universalImplication = given(implicationPremise)
+                val existential = given(existencePremise)
+                eliminateExists(existential) { x, witness ->
+                    val implicationAtWitness = applyByMpChain(
+                        FirstOrderAxioms.forallInstantiation(implicationPredicate, x),
+                        given(universalImplication),
+                    )
+                    infer(LogicAxioms.modusPonens(predicate(x), result), witness, implicationAtWitness)
+                }
+            }
+        }
+
+        assertVerifies(theorem)
+    }
+
+    @Test
+    fun buildsExistsImplicationWithExpressionForm() {
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+        val result = constant("result", CoreSorts.Proposition)
+        val implicationPredicate = lambda("x", elementSort) { x -> predicate(x) implies result }
+
+        val theorem = statement("exists-elimination-expression-form") {
+            val implicationPremise = premise(forall("x", elementSort) { predicate(it) implies result })
+            conclusion(FirstOrderFunctions.Exists(predicate) implies result)
+            proof {
+                val universalImplication = given(implicationPremise)
+                eliminateExists(FirstOrderFunctions.Exists(predicate)) { x, witness ->
+                    val implicationAtWitness = applyByMpChain(
+                        FirstOrderAxioms.forallInstantiation(implicationPredicate, x),
+                        given(universalImplication),
+                    )
+                    infer(LogicAxioms.modusPonens(predicate(x), result), witness, implicationAtWitness)
+                }
+            }
+        }
+
+        assertVerifies(theorem)
+    }
+
+    @Test
+    fun rejectsExistsEliminationHelperWhenResultDependsOnWitness() {
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+        val witness = constant("a", elementSort)
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("broken-exists-elimination-helper-captures-witness") {
+                val existencePremise = premise(FirstOrderFunctions.Exists(predicate))
+                conclusion(predicate(witness))
+                proof {
+                    val existential = given(existencePremise)
+                    eliminateExists(existential) { _, witnessFact ->
+                        given(witnessFact)
+                    }
+                }
+            }
+        }
+
+        assertTrue(error.message!!.contains("independent from the chosen witness"))
     }
 
     @Test
