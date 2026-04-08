@@ -4,6 +4,7 @@ import dev.moklev.mathproof.core.constant
 import dev.moklev.mathproof.core.statement
 import dev.moklev.mathproof.kernel.ProofVerifier
 import dev.moklev.mathproof.kernel.StatementDefinition
+import dev.moklev.mathproof.kernel.auto
 import dev.moklev.mathproof.model.CoreSorts
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -76,6 +77,52 @@ class ScopedProofDslTest {
     }
 
     @Test
+    fun infersModusPonensParametersInsideAssumptionBlock() {
+        val p = constant("p", CoreSorts.Proposition)
+        val q = constant("q", CoreSorts.Proposition)
+
+        val theorem = statement("scoped-assume-mp-auto-parameters") {
+            val pqPremise = premise(p implies q)
+            conclusion(p implies q)
+            proof {
+                val givenPq = given(pqPremise)
+                assume(p) { assumption ->
+                    val givenAssumption = given(assumption)
+                    val liftedPremise = given(givenPq)
+                    infer(LogicAxioms.modusPonens, givenAssumption, liftedPremise)
+                }
+            }
+        }
+
+        assertVerifies(theorem)
+    }
+
+    @Test
+    fun supportsScopedInferenceWithExplicitArgsPlusDerivedBindings() {
+        val p = constant("p", CoreSorts.Proposition)
+        val q = constant("q", CoreSorts.Proposition)
+
+        val theorem = statement("scoped-assume-mp-with-explicit-arg") {
+            val pqPremise = premise(p implies q)
+            conclusion(p implies q)
+            proof {
+                val givenPq = given(pqPremise)
+                assume(p) { assumption ->
+                    val givenAssumption = given(assumption)
+                    val liftedPremise = given(givenPq)
+                    infer(
+                        LogicAxioms.modusPonens(auto(), q),
+                        givenAssumption,
+                        liftedPremise,
+                    )
+                }
+            }
+        }
+
+        assertVerifies(theorem)
+    }
+
+    @Test
     fun appliesTheoremByMpChainAtTopLevel() {
         val p = constant("p", CoreSorts.Proposition)
         val q = constant("q", CoreSorts.Proposition)
@@ -104,6 +151,23 @@ class ScopedProofDslTest {
                 assume(p) { assumption ->
                     val givenP = given(assumption)
                     applyByMpChain(LogicLibrary.implicationIdentity(p), givenP)
+                }
+            }
+        }
+
+        assertVerifies(theorem)
+    }
+
+    @Test
+    fun infersApplyByMpChainParametersInsideAssumeBlock() {
+        val p = constant("p", CoreSorts.Proposition)
+
+        val theorem = statement("apply-by-mp-chain-inside-assume-auto-parameters") {
+            conclusion(p implies p)
+            proof {
+                assume(p) { assumption ->
+                    val givenP = given(assumption)
+                    applyByMpChain(LogicLibrary.implicationIdentity, givenP)
                 }
             }
         }

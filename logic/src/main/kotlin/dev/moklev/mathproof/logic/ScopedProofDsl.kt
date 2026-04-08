@@ -4,8 +4,11 @@ import dev.moklev.mathproof.kernel.Fact
 import dev.moklev.mathproof.kernel.Justification
 import dev.moklev.mathproof.kernel.ProofBuilder
 import dev.moklev.mathproof.kernel.StatementCall
+import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.kernel.StatementPremise
 import dev.moklev.mathproof.kernel.TodoAssumption
+import dev.moklev.mathproof.kernel.resolveFromMatches
+import dev.moklev.mathproof.kernel.resolveFromPremises
 import dev.moklev.mathproof.model.Apply
 import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.Expr
@@ -78,8 +81,19 @@ class AssumptionScope internal constructor(
 
     fun given(premise: StatementPremise): ScopedFact = context.usePremise(premise)
 
-    fun infer(statement: StatementCall, vararg premises: ScopedFact): ScopedFact =
-        context.infer(statement, premises.toList())
+    fun infer(statement: StatementCall, vararg premises: ScopedFact): ScopedFact {
+        val resolvedStatement = statement.resolveFromPremises(premises.map { premise -> premise.claim })
+        return context.infer(resolvedStatement, premises.toList())
+    }
+
+    fun infer(
+        statement: StatementDefinition,
+        vararg premises: ScopedFact,
+    ): ScopedFact =
+        infer(
+            statement.autoCall(),
+            *premises,
+        )
 
     fun justify(claim: Expr, justification: Justification, vararg premises: ScopedFact): ScopedFact =
         context.justify(claim, justification, premises.toList())
@@ -101,11 +115,15 @@ class AssumptionScope internal constructor(
         context.hasFreeSymbolInStatementPremises(symbol)
 
     fun applyByMpChain(statement: StatementCall, vararg facts: ScopedFact): ScopedFact {
-        require(statement.premises.isEmpty()) {
-            "applyByMpChain expects a premise-free theorem, but statement '${statement.statement.name}' has ${statement.premises.size} declared premise(s)."
+        val resolvedStatement = inferCallFromMpChainFacts(
+            statement = statement,
+            factClaims = facts.map { fact -> fact.claim },
+        )
+        require(resolvedStatement.premises.isEmpty()) {
+            "applyByMpChain expects a premise-free theorem, but statement '${resolvedStatement.statement.name}' has ${resolvedStatement.premises.size} declared premise(s)."
         }
 
-        var current = infer(statement)
+        var current = infer(resolvedStatement)
         facts.forEachIndexed { index, fact ->
             val resolvedFact = given(fact)
             val implication = current.claim.implicationPartsOrNull()
@@ -126,6 +144,18 @@ class AssumptionScope internal constructor(
 
         return current
     }
+
+    fun applyByMpChain(
+        statement: StatementDefinition,
+        vararg facts: ScopedFact,
+    ): ScopedFact =
+        applyByMpChain(
+            inferCallFromMpChainFacts(
+                statement = statement.autoCall(),
+                factClaims = facts.map { fact -> fact.claim },
+            ),
+            *facts,
+        )
 
     fun assume(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): ScopedFact =
         context.assume(assume, block)
@@ -163,12 +193,28 @@ fun ProofBuilder.contradiction(assume: Expr, block: AssumptionScope.(ScopedFact)
     )
 }
 
+fun ProofBuilder.applyByMpChain(
+    statement: StatementDefinition,
+    vararg facts: Fact,
+): Fact =
+    applyByMpChain(
+        inferCallFromMpChainFacts(
+            statement = statement.autoCall(),
+            factClaims = facts.map { fact -> fact.claim },
+        ),
+        *facts,
+    )
+
 fun ProofBuilder.applyByMpChain(statement: StatementCall, vararg facts: Fact): Fact {
-    require(statement.premises.isEmpty()) {
-        "applyByMpChain expects a premise-free theorem, but statement '${statement.statement.name}' has ${statement.premises.size} declared premise(s)."
+    val resolvedStatement = inferCallFromMpChainFacts(
+        statement = statement,
+        factClaims = facts.map { fact -> fact.claim },
+    )
+    require(resolvedStatement.premises.isEmpty()) {
+        "applyByMpChain expects a premise-free theorem, but statement '${resolvedStatement.statement.name}' has ${resolvedStatement.premises.size} declared premise(s)."
     }
 
-    var current = infer(statement)
+    var current = infer(resolvedStatement)
     facts.forEachIndexed { index, fact ->
         val implication = current.claim.implicationPartsOrNull()
             ?: throw IllegalArgumentException(
@@ -187,6 +233,31 @@ fun ProofBuilder.applyByMpChain(statement: StatementCall, vararg facts: Fact): F
     }
 
     return current
+}
+
+private fun inferCallFromMpChainFacts(
+    statement: StatementCall,
+    factClaims: List<Expr>,
+): StatementCall {
+    require(statement.statement.premises.isEmpty()) {
+        "applyByMpChain expects a premise-free theorem, but statement '${statement.statement.name}' has ${statement.statement.premises.size} declared premise(s)."
+    }
+
+    var currentPattern = statement.conclusion
+    val matches = mutableListOf<Pair<Expr, Expr>>()
+    factClaims.forEachIndexed { index, factClaim ->
+        val implication = currentPattern.implicationPartsOrNull()
+            ?: throw IllegalArgumentException(
+                "Cannot infer arguments for statement '${statement.statement.name}' from applyByMpChain facts: expected an implication before fact ${index + 1}, but pattern is '$currentPattern'.",
+            )
+        matches += implication.left to factClaim
+        currentPattern = implication.right
+    }
+
+    return statement.resolveFromMatches(
+        matches = matches,
+        sourceDescription = "applyByMpChain facts",
+    )
 }
 
 internal class AssumptionContext(

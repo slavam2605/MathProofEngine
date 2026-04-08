@@ -70,12 +70,13 @@ class ProofBuilder internal constructor(
 
     fun infer(label: String, statement: StatementCall, vararg premises: Fact): Fact {
         requireFactsBelongToThisProof(*premises)
+        val resolvedStatement = statement.resolveFromPremises(premises.map { premise -> premise.claim })
         return addStep(
             label = label,
-            claim = statement.conclusion,
+            claim = resolvedStatement.conclusion,
             justification = StatementApplication(
-                statement = statement.statement,
-                arguments = statement.arguments,
+                statement = resolvedStatement.statement,
+                arguments = resolvedStatement.arguments,
                 premiseLabels = premises.map { it.label },
             ),
         )
@@ -83,6 +84,17 @@ class ProofBuilder internal constructor(
 
     fun infer(statement: StatementCall, vararg premises: Fact): Fact =
         infer(nextAutoLabel("step"), statement, *premises)
+
+    fun infer(
+        label: String,
+        statement: StatementDefinition,
+        vararg premises: Fact,
+    ): Fact = infer(label, statement.autoCall(), *premises)
+
+    fun infer(
+        statement: StatementDefinition,
+        vararg premises: Fact,
+    ): Fact = infer(nextAutoLabel("step"), statement, *premises)
 
     fun justify(label: String, claim: Expr, justification: Justification, vararg facts: Fact): Fact {
         requireFactsBelongToThisProof(*facts)
