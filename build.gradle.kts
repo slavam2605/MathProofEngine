@@ -15,6 +15,7 @@ dependencies {
     implementation(project(":equality"))
     implementation(project(":fol"))
     implementation(project(":logic"))
+    implementation("org.jline:jline:3.25.1")
     testImplementation(kotlin("test"))
     testImplementation(testFixtures(project(":core-engine")))
 }
@@ -29,4 +30,12 @@ application {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+tasks.register<JavaExec>("statementExplorer") {
+    group = "application"
+    description = "Interactive statement explorer for axioms and lemmas."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("dev.moklev.mathproof.tools.StatementExplorerKt")
+    standardInput = System.`in`
 }

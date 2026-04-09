@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+DIST_LIB_DIR="build/install/MathProofEngine/lib"
+
+needs_rebuild() {
+  if [[ ! -d "$DIST_LIB_DIR" ]]; then
+    return 0
+  fi
+
+  local main_jars=()
+  local main_jar
+  local jar
+
+  shopt -s nullglob
+  main_jars=("$DIST_LIB_DIR"/MathProofEngine-*.jar)
+  shopt -u nullglob
+  if (( ${#main_jars[@]} == 0 )); then
+    return 0
+  fi
+
+  main_jar="${main_jars[0]}"
+  for jar in "${main_jars[@]}"; do
+    if [[ "$jar" -nt "$main_jar" ]]; then
+      main_jar="$jar"
+    fi
+  done
+
+  local watched_paths=(
+    "build.gradle.kts"
+    "settings.gradle.kts"
+    "gradle.properties"
+    "core-engine"
+    "logic"
+    "equality"
+    "fol"
+    "nat"
+    "algebra"
+    "real"
+    "src"
+  )
+
+  local path
+  for path in "${watched_paths[@]}"; do
+    if [[ -d "$path" ]]; then
+      if find "$path" \
+        \( -path '*/build/*' -o -path '*/.gradle/*' -o -path '*/.git/*' \) -prune -o \
+        -type f \( -name '*.kt' -o -name '*.kts' -o -name '*.properties' \) \
+        -newer "$main_jar" -print -quit | grep -q .; then
+        return 0
+      fi
+    elif [[ -f "$path" && "$path" -nt "$main_jar" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+if needs_rebuild; then
+  ./gradlew -q installDist
+fi
+
+exec java -cp "$DIST_LIB_DIR/*" dev.moklev.mathproof.tools.StatementExplorerKt "$@"
