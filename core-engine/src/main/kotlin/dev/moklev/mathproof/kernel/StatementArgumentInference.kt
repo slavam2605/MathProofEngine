@@ -365,10 +365,6 @@ private class StatementArgumentMatcher(
         functionSort: FunctionSort,
         seed: ApplicationConstraint,
     ): Expr? {
-        if (seed.argumentPattern.containsBound()) {
-            return null
-        }
-
         val placeholder = freshFree(
             displayName = "auto",
             sort = functionSort.parameterSort,
@@ -378,6 +374,7 @@ private class StatementArgumentMatcher(
             expr = seed.actual,
             target = seed.argumentPattern,
             replacement = placeholder,
+            depth = 0,
         )
         if (!changed) {
             return null
@@ -423,14 +420,20 @@ private class StatementArgumentMatcher(
         expr: Expr,
         target: Expr,
         replacement: Free,
+        depth: Int,
     ): Pair<Expr, Boolean> {
-        if (expr == target) {
+        if (matchesAtDepth(expr = expr, target = target, depth = depth)) {
             return replacement to true
         }
         return when (expr) {
             is Free, is Bound -> expr to false
             is Lambda -> {
-                val (body, changed) = replaceAllOccurrences(expr.body, target, replacement)
+                val (body, changed) = replaceAllOccurrences(
+                    expr = expr.body,
+                    target = target,
+                    replacement = replacement,
+                    depth = depth + 1,
+                )
                 if (!changed) {
                     expr to false
                 } else {
@@ -440,8 +443,18 @@ private class StatementArgumentMatcher(
                 }
             }
             is Apply -> {
-                val (function, functionChanged) = replaceAllOccurrences(expr.function, target, replacement)
-                val (argument, argumentChanged) = replaceAllOccurrences(expr.argument, target, replacement)
+                val (function, functionChanged) = replaceAllOccurrences(
+                    expr = expr.function,
+                    target = target,
+                    replacement = replacement,
+                    depth = depth,
+                )
+                val (argument, argumentChanged) = replaceAllOccurrences(
+                    expr = expr.argument,
+                    target = target,
+                    replacement = replacement,
+                    depth = depth,
+                )
                 val changed = functionChanged || argumentChanged
                 if (!changed) {
                     expr to false
@@ -452,19 +465,49 @@ private class StatementArgumentMatcher(
         }
     }
 
+    private fun matchesAtDepth(
+        expr: Expr,
+        target: Expr,
+        depth: Int,
+    ): Boolean = when (target) {
+        is Free -> {
+            val actual = expr as? Free ?: return false
+            target.symbol == actual.symbol && target.sort == actual.sort
+        }
+        is Bound -> {
+            val actual = expr as? Bound ?: return false
+            actual.index == target.index + depth && actual.sort == target.sort
+        }
+        is Lambda -> {
+            val actual = expr as? Lambda ?: return false
+            actual.parameterSort == target.parameterSort &&
+                matchesAtDepth(
+                    expr = actual.body,
+                    target = target.body,
+                    depth = depth + 1,
+                )
+        }
+        is Apply -> {
+            val actual = expr as? Apply ?: return false
+            matchesAtDepth(
+                expr = actual.function,
+                target = target.function,
+                depth = depth,
+            ) &&
+                matchesAtDepth(
+                    expr = actual.argument,
+                    target = target.argument,
+                    depth = depth,
+                )
+        }
+    }
+
     private fun Expr.containsUnresolvedParameter(unresolvedSymbols: Set<String>): Boolean = when (this) {
         is Free -> this.symbol in unresolvedSymbols
         is Bound -> false
         is Lambda -> body.containsUnresolvedParameter(unresolvedSymbols)
         is Apply -> function.containsUnresolvedParameter(unresolvedSymbols) ||
             argument.containsUnresolvedParameter(unresolvedSymbols)
-    }
-
-    private fun Expr.containsBound(): Boolean = when (this) {
-        is Free -> false
-        is Bound -> true
-        is Lambda -> body.containsBound()
-        is Apply -> function.containsBound() || argument.containsBound()
     }
 
     private data class ApplicationConstraint(

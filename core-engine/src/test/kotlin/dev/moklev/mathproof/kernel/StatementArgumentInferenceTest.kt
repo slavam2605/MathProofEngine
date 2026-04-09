@@ -170,5 +170,38 @@ class StatementArgumentInferenceTest {
         assertEquals(all(expectedPredicate).betaNormalize(), inferred.conclusion.betaNormalize())
     }
 
+    @Test
+    fun synthesizesHigherOrderPredicateUsingBoundSeedWhenBaseIsNotSpecificEnough() {
+        val inductionLike = statement("induction-like-bound-seed") {
+            val predicate = parameter("predicate", functionSort(elementSort, returns = CoreSorts.Proposition))
+            premise(predicate(zero))
+            premise(
+                all(
+                    lambda("n", elementSort) { n ->
+                        predicate(n) implies predicate(succ(n))
+                    }
+                )
+            )
+            conclusion(all(predicate))
+            assumed()
+        }
+
+        val mul = function("*", elementSort, elementSort, returns = elementSort)
+        val base = eq(mul(zero, zero), zero)
+        val step = all(
+            lambda("n", elementSort) { n ->
+                eq(mul(zero, n), zero) implies eq(mul(zero, succ(n)), zero)
+            }
+        )
+
+        val inferred = inductionLike.autoCall().resolveFromPremises(listOf(base, step))
+        val expectedPredicate = lambda("u", elementSort) { u ->
+            eq(mul(zero, u), zero)
+        }
+
+        assertEquals(expectedPredicate.betaNormalize(), inferred.arguments.single().betaNormalize())
+        assertEquals(all(expectedPredicate).betaNormalize(), inferred.conclusion.betaNormalize())
+    }
+
     private infix fun Expr.implies(other: Expr): Expr = implies(this, other)
 }
