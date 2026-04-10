@@ -317,6 +317,58 @@ class FirstOrderModuleTest {
     }
 
     @Test
+    fun forAllByGeneralizationUsesLastStepFromBlock() {
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+        val guard = constant("guard", CoreSorts.Proposition)
+
+        val theorem = statement("forall-generalization-uses-last-step") {
+            conclusion(forall("u", elementSort) { guard implies guard })
+            proof {
+                forAllByGeneralization("x", elementSort) { x ->
+                    infer(LogicLibrary.implicationIdentity(predicate(x)))
+                    infer(LogicLibrary.implicationIdentity(guard))
+                }
+            }
+        }
+
+        assertVerifies(theorem)
+    }
+
+    @Test
+    fun rejectsForAllByGeneralizationWhenBlockIsEmpty() {
+        val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("bad-forall-generalization-empty-block") {
+                conclusion(forall("u", elementSort) { predicate(it) })
+                proof {
+                    forAllByGeneralization("x", elementSort) { _ -> }
+                }
+            }
+        }
+
+        assertTrue(error.message!!.contains("forAllByGeneralization block must contain at least one proof step."))
+    }
+
+    @Test
+    fun rejectsScopedForAllByGeneralizationWhenBlockIsEmpty() {
+        val guard = constant("guard", CoreSorts.Proposition)
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("bad-scoped-forall-generalization-empty-block") {
+                conclusion(guard implies forall("u", elementSort) { guard })
+                proof {
+                    assume(guard) { _ ->
+                        forAllByGeneralization("x", elementSort) { _ -> }
+                    }
+                }
+            }
+        }
+
+        assertTrue(error.message!!.contains("forAllByGeneralization block must contain at least one proof step."))
+    }
+
+    @Test
     fun appliesUniversalGeneralizationWithUnrelatedPremise() {
         val predicate = function("P", elementSort, returns = CoreSorts.Proposition)
         val guard = constant("guard", CoreSorts.Proposition)

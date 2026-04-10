@@ -162,6 +162,12 @@ class AssumptionScope internal constructor(
 
     fun contradiction(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): ScopedFact =
         context.contradiction(assume, block)
+
+    fun withLastFactFrom(blockDescription: String, block: AssumptionScope.() -> Unit): ScopedFact {
+        val stepCountBefore = context.currentStepCount()
+        this.block()
+        return context.requireLastDerivedStepSince(stepCountBefore, blockDescription)
+    }
 }
 
 fun ProofBuilder.assume(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): Fact {
@@ -439,6 +445,15 @@ internal class AssumptionContext(
             steps = steps.toList(),
             target = target,
         ).compile(resultStepId)
+    }
+
+    fun currentStepCount(): Int = steps.size
+
+    fun requireLastDerivedStepSince(stepCountBefore: Int, blockDescription: String): ScopedFact {
+        require(steps.size > stepCountBefore) {
+            "$blockDescription block must contain at least one proof step."
+        }
+        return requireLastDerivedStep()
     }
 
     fun requireLastDerivedStep(): ScopedFact {

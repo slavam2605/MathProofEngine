@@ -199,14 +199,19 @@ fun AssumptionScope.generalizeForAll(
     )
 }
 
+/**
+ * Declares a proof-local arbitrary variable and universally generalizes the last proof step emitted by [proveAt].
+ */
 fun ProofBuilder.forAllByGeneralization(
     variableName: String,
     sort: Sort,
-    proveAt: (Free) -> Fact,
+    proveAt: (Free) -> Unit,
 ): Fact {
     ensureScopedUniversalGeneralizationSupportRegistered()
     val variable = arbitrary(variableName, sort)
-    val source = proveAt(variable)
+    val source = withLastFactFrom("forAllByGeneralization") {
+        proveAt(variable)
+    }
     return generalizeForAll(variable, source)
 }
 
@@ -214,22 +219,26 @@ fun ProofBuilder.forAllByGeneralization(
     label: String,
     variableName: String,
     sort: Sort,
-    proveAt: (Free) -> Fact,
+    proveAt: (Free) -> Unit,
 ): Fact {
     ensureScopedUniversalGeneralizationSupportRegistered()
     val variable = arbitrary(variableName, sort)
-    val source = proveAt(variable)
+    val source = withLastFactFrom("forAllByGeneralization") {
+        proveAt(variable)
+    }
     return generalizeForAll(label, variable, source)
 }
 
 fun AssumptionScope.forAllByGeneralization(
     variableName: String,
     sort: Sort,
-    proveAt: (Free) -> ScopedFact,
+    proveAt: (Free) -> Unit,
 ): ScopedFact {
     ensureScopedUniversalGeneralizationSupportRegistered()
     val variable = arbitrary(variableName, sort)
-    val source = proveAt(variable)
+    val source = withLastFactFrom("forAllByGeneralization") {
+        proveAt(variable)
+    }
     return generalizeForAll(variable, source)
 }
 

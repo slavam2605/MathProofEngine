@@ -155,6 +155,16 @@ class ProofBuilder internal constructor(
 
     fun declaredPremises(): List<Expr> = statementPremises.toList()
 
+    fun withLastFactFrom(blockDescription: String, block: ProofBuilder.() -> Unit): Fact {
+        val stepCountBefore = steps.size
+        this.block()
+        require(steps.size > stepCountBefore) {
+            "$blockDescription block must contain at least one proof step."
+        }
+        val lastStep = steps.last()
+        return Fact.fromProof(lastStep.label, lastStep.claim, proofContextId)
+    }
+
     private fun addStep(label: String, claim: Expr, justification: Justification): Fact {
         val normalizedClaim = claim.betaNormalize()
         require(labels.add(label)) { "Step label '$label' is already used in this proof." }
