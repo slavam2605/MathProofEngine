@@ -1,10 +1,13 @@
 package dev.moklev.mathproof.logic
 
 import dev.moklev.mathproof.core.statement
+import dev.moklev.mathproof.kernel.auto
 import dev.moklev.mathproof.logic.LogicAxioms.hilbertAxiom1
 import dev.moklev.mathproof.logic.LogicAxioms.hilbertAxiom2
 import dev.moklev.mathproof.logic.LogicAxioms.hilbertAxiom3
 import dev.moklev.mathproof.logic.LogicAxioms.modusPonens
+import dev.moklev.mathproof.logic.LogicAxioms.orIntroductionLeft
+import dev.moklev.mathproof.logic.LogicAxioms.orIntroductionRight
 import dev.moklev.mathproof.model.CoreSorts
 
 object LogicLibrary {
@@ -174,6 +177,25 @@ object LogicLibrary {
     }
 
     /**
+     * `p, q: Proposition`
+     *
+     * `p -> !p -> q`
+     */
+    val exFalsoAlt = statement("ex-falso-alt") {
+        val p = parameter("p", CoreSorts.Proposition)
+        val q = parameter("q", CoreSorts.Proposition)
+
+        conclusion(p implies (!p implies q))
+        proof {
+            assume(p) { pt ->
+                assume(!p) { pf ->
+                    applyByMpChain(exFalso(p, q), pf, pt)
+                }
+            }
+        }
+    }
+
+    /**
      * `p: Proposition`
      *
      * `(!p -> p) -> p`
@@ -216,6 +238,52 @@ object LogicLibrary {
                     val nQnP = infer(modusPonens(!!p implies !!q, !q implies !p), nnPnnQ, h3) // !q -> !p
                     infer(modusPonens(!q, !p), notQ, nQnP) // !p
                 }
+            }
+        }
+    }
+
+    /**
+     * `p, q: Proposition`
+     *
+     * `(p and q) -> (q and p)`
+     */
+    val andSymmetry = statement("and-symmetry") {
+        val p = parameter("p", CoreSorts.Proposition)
+        val q = parameter("q", CoreSorts.Proposition)
+
+        conclusion((p and q) implies (q and p))
+        proof {
+            assume(p and q) { pq ->
+                val trueP = applyByMpChain(LogicAxioms.andEliminationLeft(p, q), pq)
+                val trueQ = applyByMpChain(LogicAxioms.andEliminationRight(p, q), pq)
+                applyByMpChain(LogicAxioms.andIntroduction(q, p), trueQ, trueP)
+            }
+        }
+    }
+
+    /**
+     * `p: Proposition`
+     *
+     * `!(p or q) -> (!p and !q)`
+     */
+    val notOr = statement("not-or") {
+        val p = parameter("p", CoreSorts.Proposition)
+        val q = parameter("q", CoreSorts.Proposition)
+
+        conclusion(!(p or q) implies (!p and !q))
+        proof {
+            assume(!(p or q)) { npq -> // !(p or q)
+                val np = contradiction(!!p) { nnp -> // !!p
+                    val pt = applyByMpChain(doubleNegationElimination, nnp) // p
+                    val pq = applyByMpChain(orIntroductionLeft(auto(), q), pt) // p or q
+                    applyByMpChain(exFalso(auto(), !p), npq, pq) // !p
+                }
+                val nq = contradiction(!!q) { nnq -> // !!q
+                    val qt = applyByMpChain(doubleNegationElimination, nnq) // q
+                    val pq = applyByMpChain(orIntroductionRight(p, auto()), qt) // p or q
+                    applyByMpChain(exFalso(auto(), !q), npq, pq) // !q
+                }
+                applyByMpChain(LogicAxioms.andIntroduction, np, nq)
             }
         }
     }
