@@ -12,6 +12,7 @@ repositories {
 dependencies {
     implementation(project(":core-engine"))
     testImplementation(kotlin("test"))
+    testImplementation(testFixtures(project(":core-engine")))
 }
 
 kotlin {

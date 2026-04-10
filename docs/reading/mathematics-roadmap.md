@@ -14,6 +14,14 @@ For each item, keep notes in place under the prompts:
 - Candidate example theorems:
 - Open questions:
 
+## Current Focus (2026-04-10)
+
+- Immediate project focus is number foundations: Nat/Algebra consolidation and replacing trusted ordered-field `0 <= 1`.
+- When capturing reading notes, prioritize material that shortens this path:
+  - ring/field identity proofs
+  - ordered-ring/ordered-field lemmas
+  - contradiction-oriented proof patterns
+
 ## 1. Proof Writing And Introductory Logic
 
 ### Daniel J. Velleman, *How to Prove It: A Structured Approach* (3rd ed., Cambridge, 2019)

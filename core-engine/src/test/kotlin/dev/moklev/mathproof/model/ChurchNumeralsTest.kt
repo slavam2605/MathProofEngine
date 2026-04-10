@@ -1,11 +1,7 @@
-package dev.moklev.mathproof
+package dev.moklev.mathproof.model
 
 import dev.moklev.mathproof.core.functionSort
 import dev.moklev.mathproof.core.lambda
-import dev.moklev.mathproof.model.Expr
-import dev.moklev.mathproof.model.NamedSort
-import dev.moklev.mathproof.model.Sort
-import dev.moklev.mathproof.model.betaNormalize
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

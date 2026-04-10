@@ -15,13 +15,17 @@ Build a math-proof engine that grows from a small trustworthy kernel into a reus
 ## Current Architecture
 
 - `core-engine/`: the minimal expression kernel (`Free`, `Bound`, `Lambda`, `Apply`), foundational sorts, constructors, statements, and verifier
-- `logic/`: proposition-level syntax, trusted axioms in `LogicAxioms`, and proof-backed lemmas in `LogicLibrary`
-- root `src/`: executable examples, the app entry point, and integration-style tests
+- `logic/`: proposition-level syntax, trusted axioms in `LogicAxioms`, proof-backed lemmas in `LogicLibrary`, and scoped proof DSL helpers
+- `equality/`: generic equality syntax, trusted equality axioms, and proof-backed equality lemmas/helpers
+- `fol/`: first-order (`forall`/`exists`) syntax plus first-order axioms and helper DSL
+- `algebra/`: reusable algebra theory surfaces (`SemiringTheory`, `RingTheory`, `FieldTheory`) and orthogonal traits (`Commutative`, `Ordered`, `OrderedField`)
+- `nat/`: natural-number syntax, axioms, and proof-backed Nat evidence/lemmas
+- root `src/`: executable examples, statement explorer tool, and integration-style tests
 
 ## Extension Rules
 
 - Only kernel-level proof mechanics belong in `core-engine`; proposition logic belongs in `logic/`, and mathematical rules and domain sorts should stay out of the core by default.
-- Quantifiers and other first-order constructs should come back in a separate module above `logic/`, not by silently expanding the propositional layer.
+- Quantifiers and first-order constructs belong in `fol/` above `logic/`; avoid silently expanding propositional `logic/` with first-order semantics.
 - New mathematical domains should be added as separate modules once their boundaries are clear, rather than recreated ad hoc inside the core or logic modules.
 - New syntax experiments should either live in `core-engine` when they are foundational, or in future domain modules when they are domain-specific, and in both cases compile into core objects.
 - Every new rule should land with at least one passing example and one failing test when the rule is misused.
@@ -39,7 +43,7 @@ Prefer commits that pair the engine with the mathematics it unlocked:
 ## Near-Term Roadmap
 
 - Add richer syntax and sugar on top of the minimal lambda-based core.
-- Add a separate first-order logic layer with quantifiers and quantifier reasoning above the current propositional `logic` module.
+- Expand first-order reasoning ergonomics (`fol`) and keep quantifier-aware helpers reusable across math domains.
 - Add a context-aware proof layer with sequents like `Gamma |- phi`, local assumptions, and explicit implication discharge; prefer treating it as a derived proof DSL first, then decide later whether it belongs in the kernel.
 - Add rewriting over equalities and named identities.
 - Introduce a parser layer for text-based proof scripts.

@@ -7,6 +7,10 @@ The current baseline is intentionally modest:
 - a minimal sorted expression core built from `Free`, `Bound`, `Lambda`, and unary `Apply`
 - curried function sorts, higher-order application, and sort variables
 - foundational syntax in `core-engine` and proposition logic in `logic`
+- direct proof scripts built from `given` and `infer` over the existing step model
+- generic equality syntax, axioms, and starter equality lemmas in `equality`
+- explicit quantifier syntax and starter rules in `fol`
+- separate domain modules for naturals and algebra theory objects
 - a starter logical basis split into trusted `LogicAxioms` and proof-backed `LogicLibrary`
 - runnable examples and tests that show the verifier working end to end
 
@@ -29,10 +33,13 @@ algebra/
   algebra/    Base theory objects (`SemiringTheory`, `RingTheory`, `FieldTheory`) plus orthogonal traits (`Commutative`, `Ordered`, `OrderedField`) and theory-derived lemmas
 src/main/kotlin/dev/moklev/mathproof/
   examples/   Small sample proofs that double as executable documentation
+  tools/      Developer utilities such as interactive statement exploration
   Main.kt     Runnable entry point
 ```
 
-`core-engine` intentionally knows only foundational concepts. Proposition logic now lives in `logic`. Domain-specific mathematics will be added back later as separate modules once that boundary is redesigned. Quantifiers and other first-order logic features are intentionally not part of the current `logic` module yet; they are planned as a separate layer above propositional logic.
+`core-engine` intentionally knows only foundational concepts. Proposition logic lives in `logic`, reusable equality reasoning in `equality`, first-order syntax in `fol`, and mathematical theories in separate modules above that. Proof scripts remain explicit step-by-step (`given`/`infer`) with scoped assumptions available (`assume`/`contradiction`); a fuller sequent-style context layer is still future work.
+
+Abstract algebra is modeled through theory objects and orthogonal structure traits (for example, `NatTheory` as `SemiringTheory + Commutative + Ordered`). Statement surfaces are evidence-driven: theory/trait statements call into explicit evidence interfaces, which can be proof-backed or trusted. In this model, additive commutativity is part of `SemiringTheory` (and therefore `RingTheory`), `Commutative<T>` captures multiplicative commutativity, and `Ordered<T>` captures order compatibility with addition and multiplication. `FieldTheory` carries both additive inverse (`neg`) and multiplicative inverse (`inv`) structure, while `OrderedField<T>` currently keeps one trusted order axiom path (`0 <= 1`) slated for replacement.
 
 ## Current Usage
 
@@ -121,9 +128,9 @@ val hypotheticalSyllogism = statement("hypothetical-syllogism") {
 The current design is biased toward a future proof assistant rather than a closed demo. The next natural layers are:
 
 1. parser support for a text proof language that compiles into the same lambda-based kernel objects
-2. derived logical/mathematical syntax over the minimal core, while keeping verification on the core terms
-3. a separate first-order logic layer with quantifiers, quantifier axioms/rules, and eventually equality-aware reasoning
-4. derived rules and small automation tactics
+2. deeper first-order rule coverage and quantifier-proof ergonomics in `fol`
+3. unified proof-scope ergonomics across root and nested assumption contexts
+4. derived rules and small deterministic automation tactics (rewrite chains, MP closures, witness helpers)
 5. richer domain libraries for algebra, number theory, analysis, geometry, and set theory
 6. proof search experiments driven by deterministic tactics first, then LLM-guided exploration
 
@@ -132,3 +139,4 @@ The current design is biased toward a future proof assistant rather than a close
 - `AGENTS.md` is the canonical map for future Codex sessions and other AI agents.
 - `docs/project-roadmap.md` proposes a commit cadence where each commit teaches the engine one new capability and records one mathematical idea.
 - `docs/reading/mathematics-roadmap.md` is the structured literature and note-taking backbone for future study.
+- `docs/proof-goals.md` tracks candidate theorem targets (Levels 1-5) for future formalization.

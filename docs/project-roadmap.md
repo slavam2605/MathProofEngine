@@ -1,48 +1,49 @@
 # Project Roadmap
 
-This roadmap is organized as commit-sized slices so the repository can grow in a way that is both technically useful and mathematically educational.
+This roadmap is organized as commit-sized slices so the repository grows in a way that is both technically useful and mathematically educational.
 
-## Baseline
+## Current State (2026-04-10)
 
-- Establish the kernel, DSL, starter theories, docs, and tests.
+- Multi-module layout is active: `core-engine`, `logic`, `equality`, `fol`, `algebra`, `nat`, plus root `src/` examples and integration tests.
+- Proof surface supports direct scripts plus scoped assumptions (`assume`, `contradiction`) with explicit context tracking.
+- Algebra statements are now evidence-driven across `SemiringTheory`, `Commutative`, `Ordered`, `RingTheory`, and `FieldTheory`.
+- `NatTheory` currently provides proof-backed evidence for semiring, multiplicative commutativity, and ordered properties.
+- The largest remaining trust debt in this area is ordered-field `zeroLeOne` (`0 <= 1`).
+
+## Active Gaps
+
+- Replace trusted `OrderedField.zeroLeOne` with proof-backed derivation.
+- Improve proof ergonomics for long rewrite/transitivity chains used in arithmetic/order proofs.
+- Continue reducing overload friction between root and scoped proof DSL APIs.
+- Add parser/text-script layer while keeping Kotlin DSL as canonical lossless representation.
 
 ## Suggested Next Commits
 
-1. Add term and formula substitution.
-   Capture the idea of variable binding, free variables, and safe replacement.
+1. Close ordered-field trust debt (`0 <= 1`) by replacing the current trusted path with proof-backed evidence.
 
-2. Add schema instantiation for axioms and theorems.
-   Use it to move from one-off identities to reusable theorem schemas.
+2. Add reusable rewrite-chain helpers.
+   Focus on additive term reordering and transitivity chain builders used repeatedly in `nat` and future `real` proofs.
 
-3. Add equality rewriting.
-   Prove simple algebraic and trigonometric transformations by chaining named identities.
+3. Expand algebra-module verification tests.
+   Add discovery-based statement verification (with shared discovery robustness checks) for algebra holders.
 
-4. Add arithmetic and induction primitives.
-   Record Peano-style examples and a first induction proof over naturals.
+4. Continue proof-scope unification.
+   Follow [unified-proof-scope-plan.md](unified-proof-scope-plan.md) incrementally: keep semantics stable, reduce overload ambiguity.
 
-5. Add a text parser for statements and proof scripts.
-   Keep Kotlin DSL as the lossless reference representation.
+5. Add parser groundwork for statement/proof scripts.
+   Preserve Kotlin DSL as source of truth while introducing text-level round-tripping.
 
-6. Add a separate first-order logic module.
-   Reintroduce `forall`, `exists`, and later biconditional support together with real quantifier axioms/rules instead of keeping unsupported syntax in the propositional `logic` module.
+6. Introduce targeted deterministic tactics.
+   Start with equality-chain completion and MP-chain closure helpers before any search-heavy automation.
 
-7. Add context-aware proof judgments.
-   Introduce a proof layer around sequents such as `Gamma |- phi`, local assumptions, weakening, and implication discharge so proofs can use temporary contexts and later compile back into implication-based statements.
-
-8. Add geometry-specific structures.
-   Introduce points, lines, incidence, and betweenness instead of encoding geometry only as generic function terms.
-
-9. Add search helpers.
-   Start with deterministic tactics such as repeated rewriting, modus ponens closure, or equality-chain completion.
-
-10. Add theory packs.
-   Separate foundations, algebra, analysis, number theory, set theory, and geometry into clearer modules if the single Gradle module becomes crowded.
+7. Grow domain libraries beyond number foundations.
+   Prioritize commit slices that pair new engine capability with one proved theorem and one negative test.
 
 ## Commit Heuristic
 
 If a commit changes the engine, try to include one of these alongside it:
 
-- a new theorem in `library/`
-- a new worked example in `examples/`
+- a new theorem in a domain library module
+- a new worked example in `src/main/.../examples`
 - a new note in `docs/reading/`
 - a new failing-then-passing test
