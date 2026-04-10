@@ -4,6 +4,7 @@ import dev.moklev.mathproof.kernel.AssumedTrue
 import dev.moklev.mathproof.kernel.ProofProvided
 import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.kernel.StatementApplication
+import dev.moklev.mathproof.kernel.TodoAssumption
 import java.io.File
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -66,6 +67,7 @@ private class StatementExplorer(
                 "list" -> listStatements()
                 "find" -> findStatements(args)
                 "depends" -> printDependencies(args)
+                "axioms" -> printAxioms(args)
                 "filters" -> printFilters()
                 "clear" -> if (args.isEmpty()) {
                     filters.clearAll()
@@ -86,7 +88,7 @@ private class StatementExplorer(
     }
 
     private fun buildLineReader(): LineReader {
-        val commands = StringsCompleter("help", "list", "find", "depends", "filters", "set", "clear", "refresh", "show", "quit", "exit")
+        val commands = StringsCompleter("help", "list", "find", "depends", "axioms", "filters", "set", "clear", "refresh", "show", "quit", "exit")
         val filterNames = StringsCompleter("class-glob", "class-regex", "text-regex", "conclusion-regex")
 
         val completer = AggregateCompleter(
@@ -126,6 +128,8 @@ private class StatementExplorer(
                 Print recursive statement dependencies for matching Kotlin names (for example: NatAxioms.induction).
                 Use --max-depth (or -d) to limit recursion depth; omitted means unlimited.
                 Use --flat (or --transitive) to flatten output to one transitive dependency layer.
+              axioms
+                List trusted statements (assumed/trusted support) and separately list todoAssume() proof facts.
               show <index|holder.property>
                 Show the full rendered view for one statement.
               filters
@@ -161,6 +165,73 @@ private class StatementExplorer(
     private fun listStatements() {
         val filtered = filteredEntries()
         printStatementsResult(filtered)
+    }
+
+    private fun printAxioms(args: String) {
+        if (args.isNotBlank()) {
+            println("Usage: axioms")
+            return
+        }
+        val filtered = filteredEntries()
+        printActiveFilters()
+
+        val trustedEntries = filtered
+            .filter { entry -> entry.statement.support !is ProofProvided }
+            .sortedWith(compareBy(StatementEntry::holderSimpleName, StatementEntry::memberName))
+
+        if (trustedEntries.isEmpty()) {
+            println("No trusted statements found.")
+        } else {
+            println(renderStyle.classHeader("Trusted statements:"))
+            val grouped = trustedEntries.groupBy { entry -> entry.holderSimpleName }
+            grouped.toSortedMap().forEach { (holder, entriesByHolder) ->
+                println("$holder:")
+                entriesByHolder.forEach { entry ->
+                    val support = entry.statement.support
+                    val detailsSuffix = when (support) {
+                        is AssumedTrue -> support.note?.let { note -> " ${renderStyle.muted("// $note")}" }.orEmpty()
+                        else -> " ${renderStyle.muted("// support=${support::class.simpleName ?: "unknown"}")}"
+                    }
+                    println("  - ${renderStyle.signature(renderedSignature(entry))} [${entry.statement.name}]$detailsSuffix")
+                }
+                println()
+            }
+            println(renderStyle.summary("Matched ${trustedEntries.size} trusted statement(s) in ${grouped.size} class(es)."))
+        }
+
+        val todoFacts = filtered
+            .sortedWith(compareBy(StatementEntry::holderSimpleName, StatementEntry::memberName))
+            .flatMap { entry ->
+                val proof = (entry.statement.support as? ProofProvided)?.proof ?: return@flatMap emptyList()
+                proof.steps.mapNotNull { step ->
+                    val todo = step.justification as? TodoAssumption ?: return@mapNotNull null
+                    TodoFact(
+                        entry = entry,
+                        stepLabel = step.label,
+                        claimText = step.claim.toString(),
+                        note = todo.note,
+                    )
+                }
+            }
+
+        if (todoFacts.isNotEmpty()) {
+            println()
+            println(renderStyle.classHeader("todoAssume() facts:"))
+            val groupedByStatement = todoFacts.groupBy { todo ->
+                "${todo.entry.holderSimpleName}.${todo.entry.memberName}"
+            }.toSortedMap()
+
+            groupedByStatement.forEach { (_, facts) ->
+                val statementEntry = facts.first().entry
+                println("${statementEntry.holderSimpleName}.${statementEntry.memberName} [${statementEntry.statement.name}]")
+                facts.forEach { fact ->
+                    val noteSuffix = fact.note?.let { note -> " ${renderStyle.muted("// $note")}" }.orEmpty()
+                    println("  - ${fact.stepLabel}: ${fact.claimText}$noteSuffix")
+                }
+                println()
+            }
+            println(renderStyle.summary("Found ${todoFacts.size} todoAssume fact(s) in ${groupedByStatement.size} statement(s)."))
+        }
     }
 
     private fun findStatements(args: String) {
@@ -330,6 +401,13 @@ private class StatementExplorer(
         }
         println()
         println(renderStyle.summary("Matched ${filtered.size} statement(s) in ${groups.size} class(es)."))
+    }
+
+    private fun renderedSignature(entry: StatementEntry): String {
+        val renderedParameters = entry.statement.parameters.joinToString(", ") { parameter ->
+            "${parameter.name}: ${parameter.sort}"
+        }
+        return "${entry.memberName}($renderedParameters)"
     }
 
     private fun printActiveFilters(temporaryTextRegexRaw: String? = null) {
@@ -727,6 +805,13 @@ private data class StatementEntry(
         statement.conclusion.toString()
     }
 }
+
+private data class TodoFact(
+    val entry: StatementEntry,
+    val stepLabel: String,
+    val claimText: String,
+    val note: String?,
+)
 
 private data class StatementLookup(
     private val byIdentity: IdentityHashMap<StatementDefinition, StatementEntry>,
