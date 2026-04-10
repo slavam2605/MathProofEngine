@@ -3,6 +3,7 @@ plugins {
 }
 rootProject.name = "MathProofEngine"
 
+include(":algebra")
 include(":core-engine")
 include(":equality")
 include(":fol")

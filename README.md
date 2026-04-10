@@ -23,6 +23,8 @@ equality/
   equality/   Generic equality syntax, trusted axioms, and proof-backed equality lemmas
 fol/
   fol/        Explicit `forall` / `exists` syntax and starter first-order rules
+algebra/
+  algebra/    Base theory objects (`SemiringTheory`, `RingTheory`, `FieldTheory`) plus orthogonal traits (`Commutative`, `Ordered`, `OrderedField`) and theory-derived lemmas
 src/main/kotlin/dev/moklev/mathproof/
   examples/   Small sample proofs that double as executable documentation
   Main.kt     Runnable entry point

@@ -23,6 +23,7 @@ repositories {
 }
 
 dependencies {
+    implementation(project(":algebra"))
     implementation(project(":core-engine"))
     implementation(project(":equality"))
     implementation(project(":fol"))
