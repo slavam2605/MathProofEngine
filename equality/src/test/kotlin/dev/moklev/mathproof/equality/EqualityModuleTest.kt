@@ -6,7 +6,7 @@ import dev.moklev.mathproof.kernel.ProofVerifier
 import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.logic.applyByMpChain
 import dev.moklev.mathproof.model.NamedSort
-import dev.moklev.mathproof.testutils.discoverStatements
+import dev.moklev.mathproof.testutils.discoverStatementsChecked
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -20,7 +20,7 @@ class EqualityModuleTest {
     }
 
     private fun assertAllDiscoveredStatementsVerify(holder: Any) {
-        discoverStatements(holder).forEach { statement ->
+        discoverStatementsChecked(holder).forEach { statement ->
             assertVerifies(statement)
         }
     }

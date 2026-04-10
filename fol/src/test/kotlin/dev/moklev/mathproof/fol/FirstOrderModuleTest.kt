@@ -23,7 +23,7 @@ import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.CoreSorts
 import dev.moklev.mathproof.model.Free
 import dev.moklev.mathproof.model.NamedSort
-import dev.moklev.mathproof.testutils.discoverStatements
+import dev.moklev.mathproof.testutils.discoverStatementsChecked
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -43,7 +43,7 @@ class FirstOrderModuleTest {
     }
 
     private fun assertAllDiscoveredStatementsVerify(holder: Any) {
-        discoverStatements(holder).forEach { statement ->
+        discoverStatementsChecked(holder).forEach { statement ->
             assertVerifies(statement)
         }
     }
