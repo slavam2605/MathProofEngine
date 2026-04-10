@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
+
 plugins {
     application
     kotlin("jvm") version "2.3.20"
@@ -5,6 +7,16 @@ plugins {
 
 group = "dev.moklev.mathproof"
 version = "0.1.0-SNAPSHOT"
+
+allprojects {
+    plugins.withId("org.jetbrains.kotlin.jvm") {
+        extensions.configure<KotlinJvmProjectExtension>("kotlin") {
+            compilerOptions {
+                freeCompilerArgs.add("-Xcontext-parameters")
+            }
+        }
+    }
+}
 
 repositories {
     mavenCentral()
