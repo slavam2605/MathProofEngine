@@ -1,7 +1,7 @@
 package dev.moklev.mathproof.fol
 
-import dev.moklev.mathproof.core.function
 import dev.moklev.mathproof.core.functionSort
+import dev.moklev.mathproof.core.global
 import dev.moklev.mathproof.core.lambda
 import dev.moklev.mathproof.core.sortVariable
 import dev.moklev.mathproof.model.CoreSorts
@@ -13,9 +13,20 @@ import dev.moklev.mathproof.model.Sort
 
 object FirstOrderFunctions {
     private val operandSort = sortVariable("S")
+    private val namespace = global.namespace("fol")
 
-    val ForAll = function("forall", functionSort(operandSort, returns = CoreSorts.Proposition), returns = CoreSorts.Proposition)
-    val Exists = function("exists", functionSort(operandSort, returns = CoreSorts.Proposition), returns = CoreSorts.Proposition)
+    val ForAll = namespace.function(
+        "forall",
+        functionSort(operandSort, returns = CoreSorts.Proposition),
+        returns = CoreSorts.Proposition,
+        displayName = "forall",
+    )
+    val Exists = namespace.function(
+        "exists",
+        functionSort(operandSort, returns = CoreSorts.Proposition),
+        returns = CoreSorts.Proposition,
+        displayName = "exists",
+    )
 
     init {
         ExprNotationRegistry.register { head, arguments ->

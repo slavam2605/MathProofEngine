@@ -4,7 +4,7 @@ This roadmap is organized as commit-sized slices so the repository grows in a wa
 
 ## Current State (2026-04-10)
 
-- Multi-module layout is active: `core-engine`, `logic`, `equality`, `fol`, `algebra`, `nat`, plus root `src/` examples and integration tests.
+- Multi-module layout is active: `core`, `proof-engine`, `logic`, `equality`, `fol`, `algebra`, `nat`, plus root `src/` examples and integration tests.
 - Proof surface supports direct scripts plus scoped assumptions (`assume`, `contradiction`) with explicit context tracking.
 - Algebra statements are now evidence-driven across `SemiringTheory`, `Commutative`, `Ordered`, `RingTheory`, and `FieldTheory`.
 - `NatTheory` currently provides proof-backed evidence for semiring, multiplicative commutativity, and ordered properties.

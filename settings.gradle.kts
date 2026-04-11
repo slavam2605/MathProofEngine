@@ -4,7 +4,8 @@ plugins {
 rootProject.name = "MathProofEngine"
 
 include(":algebra")
-include(":core-engine")
+include(":core")
+include(":proof-engine")
 include(":equality")
 include(":fol")
 include(":logic")

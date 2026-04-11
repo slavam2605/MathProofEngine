@@ -6,7 +6,7 @@ The current baseline is intentionally modest:
 
 - a minimal sorted expression core built from `Free`, `Bound`, `Lambda`, and unary `Apply`
 - curried function sorts, higher-order application, and sort variables
-- foundational syntax in `core-engine` and proposition logic in `logic`
+- foundational syntax + symbol namespaces in `core`, and statements/verifier in `proof-engine`
 - direct proof scripts built from `given` and `infer` over the existing step model
 - generic equality syntax, axioms, and starter equality lemmas in `equality`
 - explicit quantifier syntax and starter rules in `fol`
@@ -17,10 +17,12 @@ The current baseline is intentionally modest:
 ## Project Shape
 
 ```text
-core-engine/
+core/
   model/      Minimal expression kernel, core sorts, and validation
+  core/       Foundational constructors, symbol namespaces/registry, and lambda helpers
+proof-engine/
   kernel/     Statements, proof steps, justifications, and verifier
-  core/       Foundational constructors and non-logical syntax (`CoreSorts`, constructors, lambda helpers)
+  core/       Statement/axiom syntax helpers and symbol-definition helpers
 logic/
   logic/      Proposition-level syntax, trusted axioms, and proof-backed logical lemmas
 equality/
@@ -37,7 +39,7 @@ src/main/kotlin/dev/moklev/mathproof/
   Main.kt     Runnable entry point
 ```
 
-`core-engine` intentionally knows only foundational concepts. Proposition logic lives in `logic`, reusable equality reasoning in `equality`, first-order syntax in `fol`, and mathematical theories in separate modules above that. Proof scripts remain explicit step-by-step (`given`/`infer`) with scoped assumptions available (`assume`/`contradiction`); a fuller sequent-style context layer is still future work.
+`core` intentionally knows only expression-level foundations and symbol identity/namespace registration, while `proof-engine` holds statement/proof mechanics. Proposition logic lives in `logic`, reusable equality reasoning in `equality`, first-order syntax in `fol`, and mathematical theories in separate modules above that. Proof scripts remain explicit step-by-step (`given`/`infer`) with scoped assumptions available (`assume`/`contradiction`); a fuller sequent-style context layer is still future work.
 
 Abstract algebra is modeled through theory objects and orthogonal structure traits (for example, `NatTheory` as `SemiringTheory + Commutative + Ordered`). Statement surfaces are evidence-driven: theory/trait statements call into explicit evidence interfaces, which can be proof-backed or trusted. In this model, additive commutativity is part of `SemiringTheory` (and therefore `RingTheory`), `Commutative<T>` captures multiplicative commutativity, and `Ordered<T>` captures order compatibility with addition and multiplication. `FieldTheory` carries both additive inverse (`neg`) and multiplicative inverse (`inv`) structure, while `OrderedField<T>` currently keeps one trusted order axiom path (`0 <= 1`) slated for replacement.
 

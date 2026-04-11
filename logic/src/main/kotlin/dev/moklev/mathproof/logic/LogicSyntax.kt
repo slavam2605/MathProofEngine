@@ -1,6 +1,6 @@
 package dev.moklev.mathproof.logic
 
-import dev.moklev.mathproof.core.function
+import dev.moklev.mathproof.core.global
 import dev.moklev.mathproof.model.Associativity
 import dev.moklev.mathproof.model.CoreSorts
 import dev.moklev.mathproof.model.Expr
@@ -8,10 +8,12 @@ import dev.moklev.mathproof.model.ExprNotation
 import dev.moklev.mathproof.model.ExprNotationRegistry
 
 object LogicFunctions {
-    val And = function("and", CoreSorts.Proposition, CoreSorts.Proposition, returns = CoreSorts.Proposition)
-    val Or = function("or", CoreSorts.Proposition, CoreSorts.Proposition, returns = CoreSorts.Proposition)
-    val Implies = function("->", CoreSorts.Proposition, CoreSorts.Proposition, returns = CoreSorts.Proposition)
-    val Not = function("!", CoreSorts.Proposition, returns = CoreSorts.Proposition)
+    private val namespace = global.namespace("logic")
+
+    val And = namespace.function("and", CoreSorts.Proposition, CoreSorts.Proposition, returns = CoreSorts.Proposition, displayName = "and")
+    val Or = namespace.function("or", CoreSorts.Proposition, CoreSorts.Proposition, returns = CoreSorts.Proposition, displayName = "or")
+    val Implies = namespace.function("implies", CoreSorts.Proposition, CoreSorts.Proposition, returns = CoreSorts.Proposition, displayName = "->")
+    val Not = namespace.function("not", CoreSorts.Proposition, returns = CoreSorts.Proposition, displayName = "!")
 
     init {
         ExprNotationRegistry.register { head, arguments ->

@@ -10,9 +10,9 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":core-engine"))
+    implementation(project(":proof-engine"))
     testImplementation(kotlin("test"))
-    testImplementation(testFixtures(project(":core-engine")))
+    testImplementation(testFixtures(project(":proof-engine")))
 }
 
 kotlin {

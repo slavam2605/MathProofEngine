@@ -10,7 +10,7 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":core-engine"))
+    implementation(project(":proof-engine"))
     implementation(project(":equality"))
     implementation(project(":logic"))
     testImplementation(kotlin("test"))

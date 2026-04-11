@@ -1,7 +1,6 @@
 package dev.moklev.mathproof.nat
 
-import dev.moklev.mathproof.core.constant
-import dev.moklev.mathproof.core.function
+import dev.moklev.mathproof.core.global
 import dev.moklev.mathproof.model.Associativity
 import dev.moklev.mathproof.model.CoreSorts
 import dev.moklev.mathproof.model.Expr
@@ -15,11 +14,13 @@ object NatSorts {
 }
 
 object NatFunctions {
-    val Zero = constant("0", NatSorts.Nat)
-    val Succ = function("S", NatSorts.Nat, returns = NatSorts.Nat)
-    val Add = function("+", NatSorts.Nat, NatSorts.Nat, returns = NatSorts.Nat)
-    val Mul = function("*", NatSorts.Nat, NatSorts.Nat, returns = NatSorts.Nat)
-    val Leq = function("<=n", NatSorts.Nat, NatSorts.Nat, returns = CoreSorts.Proposition)
+    private val namespace = global.namespace("nat")
+
+    val Zero = namespace.constant("zero", NatSorts.Nat, displayName = "0")
+    val Succ = namespace.function("succ", NatSorts.Nat, returns = NatSorts.Nat, displayName = "S")
+    val Add = namespace.function("add", NatSorts.Nat, NatSorts.Nat, returns = NatSorts.Nat, displayName = "+")
+    val Mul = namespace.function("mul", NatSorts.Nat, NatSorts.Nat, returns = NatSorts.Nat, displayName = "*")
+    val Leq = namespace.function("leq", NatSorts.Nat, NatSorts.Nat, returns = CoreSorts.Proposition, displayName = "<=n")
 
     init {
         ExprNotationRegistry.register { head, arguments ->

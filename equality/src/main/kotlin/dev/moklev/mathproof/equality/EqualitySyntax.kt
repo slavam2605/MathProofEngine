@@ -1,6 +1,6 @@
 package dev.moklev.mathproof.equality
 
-import dev.moklev.mathproof.core.function
+import dev.moklev.mathproof.core.global
 import dev.moklev.mathproof.core.sortVariable
 import dev.moklev.mathproof.model.Associativity
 import dev.moklev.mathproof.model.CoreSorts
@@ -10,8 +10,9 @@ import dev.moklev.mathproof.model.ExprNotationRegistry
 
 object EqualityFunctions {
     private val operandSort = sortVariable("S")
+    private val namespace = global.namespace("equality")
 
-    val Eq = function("=", operandSort, operandSort, returns = CoreSorts.Proposition)
+    val Eq = namespace.function("eq", operandSort, operandSort, returns = CoreSorts.Proposition, displayName = "=")
 
     init {
         ExprNotationRegistry.register { head, arguments ->

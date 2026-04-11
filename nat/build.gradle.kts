@@ -11,12 +11,12 @@ repositories {
 
 dependencies {
     implementation(project(":algebra"))
-    implementation(project(":core-engine"))
+    implementation(project(":proof-engine"))
     implementation(project(":equality"))
     implementation(project(":fol"))
     implementation(project(":logic"))
     testImplementation(kotlin("test"))
-    testImplementation(testFixtures(project(":core-engine")))
+    testImplementation(testFixtures(project(":proof-engine")))
 }
 
 kotlin {

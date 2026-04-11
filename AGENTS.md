@@ -14,7 +14,8 @@ Build a math-proof engine that grows from a small trustworthy kernel into a reus
 
 ## Current Architecture
 
-- `core-engine/`: the minimal expression kernel (`Free`, `Bound`, `Lambda`, `Apply`), foundational sorts, constructors, statements, and verifier
+- `core/`: the minimal expression kernel (`Free`, `Bound`, `Lambda`, `Apply`), foundational sorts, constructors, and symbol registry/namespaces
+- `proof-engine/`: statements, proof scripts, justifications, verifier, and proof-focused DSL primitives
 - `logic/`: proposition-level syntax, trusted axioms in `LogicAxioms`, proof-backed lemmas in `LogicLibrary`, and scoped proof DSL helpers
 - `equality/`: generic equality syntax, trusted equality axioms, and proof-backed equality lemmas/helpers
 - `fol/`: first-order (`forall`/`exists`) syntax plus first-order axioms and helper DSL
@@ -24,10 +25,10 @@ Build a math-proof engine that grows from a small trustworthy kernel into a reus
 
 ## Extension Rules
 
-- Only kernel-level proof mechanics belong in `core-engine`; proposition logic belongs in `logic/`, and mathematical rules and domain sorts should stay out of the core by default.
+- Only expression/sort/symbol foundations belong in `core/`; proof mechanics belong in `proof-engine`. Proposition logic belongs in `logic/`, and mathematical rules/domain sorts should stay out of lower layers by default.
 - Quantifiers and first-order constructs belong in `fol/` above `logic/`; avoid silently expanding propositional `logic/` with first-order semantics.
 - New mathematical domains should be added as separate modules once their boundaries are clear, rather than recreated ad hoc inside the core or logic modules.
-- New syntax experiments should either live in `core-engine` when they are foundational, or in future domain modules when they are domain-specific, and in both cases compile into core objects.
+- New syntax experiments should live in `core/` when foundational to expressions/symbols, in `proof-engine/` when proof-layer specific, or in future domain modules when domain-specific.
 - Every new rule should land with at least one passing example and one failing test when the rule is misused.
 - Trusted logical primitives belong in `LogicAxioms`; reusable proof-backed lemmas belong in `LogicLibrary`.
 

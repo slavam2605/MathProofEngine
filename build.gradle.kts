@@ -24,14 +24,14 @@ repositories {
 
 dependencies {
     implementation(project(":algebra"))
-    implementation(project(":core-engine"))
+    implementation(project(":proof-engine"))
     implementation(project(":equality"))
     implementation(project(":fol"))
     implementation(project(":logic"))
     implementation(project(":nat"))
     implementation("org.jline:jline:3.25.1")
     testImplementation(kotlin("test"))
-    testImplementation(testFixtures(project(":core-engine")))
+    testImplementation(testFixtures(project(":proof-engine")))
 }
 
 kotlin {

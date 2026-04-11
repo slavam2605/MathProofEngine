@@ -1,10 +1,10 @@
 package dev.moklev.mathproof.kernel
 
+import dev.moklev.mathproof.core.global
 import dev.moklev.mathproof.model.Expr
 import dev.moklev.mathproof.model.Free
 import dev.moklev.mathproof.model.Sort
 import dev.moklev.mathproof.model.betaNormalize
-import dev.moklev.mathproof.model.freshFree
 import dev.moklev.mathproof.model.requireProposition
 
 class Fact private constructor(
@@ -135,11 +135,12 @@ class ProofBuilder internal constructor(
             "Arbitrary variable '$name' is already declared in this proof."
         }
 
-        val variable = freshFree(
-            displayName = name,
-            sort = sort,
-            namespace = "proof-$proofContextId-arbitrary",
-        )
+        val variable = global
+            .namespace("tmp")
+            .namespace("proof")
+            .namespace(proofContextId.toString())
+            .namespace("arb")
+            .free(name, sort, displayName = name)
         arbitraryVariablesBySymbol[variable.symbol] = ArbitraryVariable(
             symbol = variable.symbol,
             displayName = variable.displayName,
@@ -197,7 +198,12 @@ class StatementBuilder(private val name: String) {
 
     fun parameter(name: String, sort: Sort): Free {
         require(name !in parameters) { "Parameter '$name' is already defined in statement '${this.name}'." }
-        val placeholder = freshFree(name, sort, namespace = "statement-$statementContextId")
+        val placeholder = global
+            .namespace("tmp")
+            .namespace("statement")
+            .namespace(statementContextId.toString())
+            .namespace("param")
+            .free(name, sort, displayName = name)
         parameters[name] = StatementParameter(
             name = name,
             sort = sort,

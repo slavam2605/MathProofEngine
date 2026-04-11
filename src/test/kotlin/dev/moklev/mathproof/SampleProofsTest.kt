@@ -1,6 +1,7 @@
 package dev.moklev.mathproof
 
 import dev.moklev.mathproof.examples.SampleProofs
+import dev.moklev.mathproof.fol.firstOrderJustificationValidators
 import dev.moklev.mathproof.kernel.ProofVerifier
 import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.kernel.prettyPrint
@@ -9,7 +10,10 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class SampleProofsTest {
-    private val verifier = ProofVerifier(failOnWarnings = true)
+    private val verifier = ProofVerifier(
+        externalJustificationValidators = firstOrderJustificationValidators,
+        failOnWarnings = true,
+    )
 
     private fun assertVerifies(statement: StatementDefinition) {
         val result = verifier.verify(statement)

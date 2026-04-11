@@ -1,7 +1,5 @@
 package dev.moklev.mathproof.core
 
-import dev.moklev.mathproof.kernel.StatementBuilder
-import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.model.Expr
 import dev.moklev.mathproof.model.Free
 import dev.moklev.mathproof.model.FunctionSort
@@ -11,13 +9,27 @@ import dev.moklev.mathproof.model.SortVariable
 import dev.moklev.mathproof.model.abstract
 import dev.moklev.mathproof.model.freshFree
 
-fun free(name: String, sort: Sort): Free =
-    Free(symbol = name, sort = sort, displayName = name)
+val global: SymbolNamespace get() = SymbolRegistry.global.root
 
-fun constant(name: String, sort: Sort): Free = free(name, sort)
+fun tempFree(
+    name: String,
+    sort: Sort,
+    namespace: String = "tmp.free",
+): Free = freshFree(
+    displayName = name,
+    sort = sort,
+    namespace = namespace,
+)
+
+fun constant(name: String, sort: Sort): Free =
+    tempFree(name, sort, namespace = "tmp.constant")
 
 fun function(name: String, vararg argumentSorts: Sort, returns: Sort): Free =
-    constant(name, functionSort(*argumentSorts, returns = returns))
+    tempFree(
+        name = name,
+        sort = functionSort(*argumentSorts, returns = returns),
+        namespace = "tmp.function",
+    )
 
 fun functionSort(vararg argumentSorts: Sort, returns: Sort): FunctionSort {
     require(argumentSorts.isNotEmpty()) { "Function sorts need at least one argument sort." }
@@ -45,6 +57,3 @@ fun lambda(
         parameterHint = name
     }
 }
-
-fun statement(name: String, block: StatementBuilder.() -> Unit): StatementDefinition =
-    StatementBuilder(name).apply(block).build()
