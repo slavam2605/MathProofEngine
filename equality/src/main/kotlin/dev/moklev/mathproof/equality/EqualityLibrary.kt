@@ -5,6 +5,7 @@ import dev.moklev.mathproof.core.lambda
 import dev.moklev.mathproof.core.sortVariable
 import dev.moklev.mathproof.core.statement
 import dev.moklev.mathproof.logic.LogicAxioms.modusPonens
+import dev.moklev.mathproof.logic.applyMp
 import dev.moklev.mathproof.logic.assume
 import dev.moklev.mathproof.logic.implies
 
@@ -23,7 +24,7 @@ object EqualityLibrary {
         proof {
             assume(x eq y) { xy ->
                 val f = lambda("t", s) { t -> t eq x }
-                val step1 = applyByMpChain(EqualityAxioms.substitution(f, x, y), xy)
+                val step1 = applyMp(EqualityAxioms.substitution(f, x, y), xy)
                 val step2 = infer(EqualityAxioms.reflexivity(x))
                 infer(modusPonens(x eq x, y eq x), step2, step1)
             }
@@ -45,9 +46,9 @@ object EqualityLibrary {
         proof {
             assume(x eq y) { xy ->
                 assume(y eq z) { yz ->
-                    val yx = applyByMpChain(symmetry(x, y), xy)
+                    val yx = applyMp(symmetry(x, y), xy)
                     val f = lambda("t", s) { t -> t eq z }
-                    val step4 = applyByMpChain(EqualityAxioms.substitution(f, y, x), yx)
+                    val step4 = applyMp(EqualityAxioms.substitution(f, y, x), yx)
                     infer(modusPonens(y eq z, x eq z), yz, step4)
                 }
             }
@@ -70,7 +71,7 @@ object EqualityLibrary {
         proof {
             assume(x eq y) { xy ->
                 val fn = lambda("t", s) { t -> f(x) eq f(t) }
-                val step2 = applyByMpChain(EqualityAxioms.substitution(fn, x, y), xy)
+                val step2 = applyMp(EqualityAxioms.substitution(fn, x, y), xy)
                 val step3 = infer(EqualityAxioms.reflexivity(f(x)))
                 infer(modusPonens(f(x) eq f(x), f(x) eq f(y)), step3, step2)
             }

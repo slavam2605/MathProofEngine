@@ -9,7 +9,7 @@ import dev.moklev.mathproof.logic.LogicAxioms.andEliminationLeft
 import dev.moklev.mathproof.logic.LogicAxioms.andEliminationRight
 import dev.moklev.mathproof.logic.LogicAxioms.andIntroduction
 import dev.moklev.mathproof.logic.and
-import dev.moklev.mathproof.logic.applyByMpChain
+import dev.moklev.mathproof.logic.applyMp
 import dev.moklev.mathproof.model.CoreSorts
 
 object SampleProofs {
@@ -21,9 +21,9 @@ object SampleProofs {
         conclusion(q and p)
         proof {
             val pair = given(pairPremise)
-            val right = applyByMpChain(andEliminationRight(p, q), pair)
-            val left = applyByMpChain(andEliminationLeft(p, q), pair)
-            applyByMpChain(andIntroduction(q, p), right, left)
+            val right = applyMp(andEliminationRight(p, q), pair)
+            val left = applyMp(andEliminationLeft(p, q), pair)
+            applyMp(andIntroduction(q, p), right, left)
         }
     }
 
@@ -41,10 +41,10 @@ object SampleProofs {
         proof {
             val givenXy = given(xy)
             val givenZy = given(zy)
-            val yz = applyByMpChain(EqualityLibrary.symmetry(z, y), givenZy)
-            val fxFy = applyByMpChain(EqualityLibrary.congruence(f, x, y), givenXy)
-            val fyFz = applyByMpChain(EqualityLibrary.congruence(f, y, z), yz)
-            applyByMpChain(EqualityLibrary.transitivity(f(x), f(y), f(z)), fxFy, fyFz)
+            val yz = applyMp(EqualityLibrary.symmetry(z, y), givenZy)
+            val fxFy = applyMp(EqualityLibrary.congruence(f, x, y), givenXy)
+            val fyFz = applyMp(EqualityLibrary.congruence(f, y, z), yz)
+            applyMp(EqualityLibrary.transitivity(f(x), f(y), f(z)), fxFy, fyFz)
         }
     }
 

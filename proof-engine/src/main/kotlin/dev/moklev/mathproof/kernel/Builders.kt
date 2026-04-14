@@ -9,9 +9,9 @@ import dev.moklev.mathproof.model.requireProposition
 
 class Fact private constructor(
     val label: String,
-    val claim: Expr,
+    override val claim: Expr,
     internal val proofContextId: Int?,
-) {
+) : DerivationFact {
     companion object {
         internal fun fromProof(
             label: String,
@@ -51,7 +51,7 @@ class ProofBuilder internal constructor(
     private val statementParameterNames: Set<String> = emptySet(),
     private val statementPremises: List<Expr> = emptyList(),
     private val proofContextId: Int = BuildContextIds.next(),
-) {
+) : DerivationScope {
     private val steps = mutableListOf<ProofStep>()
     private val labels = mutableSetOf<String>()
     private val arbitraryVariablesBySymbol = linkedMapOf<String, ArbitraryVariable>()
@@ -65,53 +65,75 @@ class ProofBuilder internal constructor(
         return addStep(label, premise.claim, PremiseReference(premise.index))
     }
 
-    fun given(premise: StatementPremise): Fact =
+    override fun given(fact: DerivationFact): Fact {
+        val proofFact = fact as? Fact
+            ?: throw IllegalArgumentException(
+                "This proof scope can only import Fact handles, but got '${fact::class.simpleName ?: "unknown"}'.",
+            )
+        requireFactsBelongToThisProof(proofFact)
+        return proofFact
+    }
+
+    override fun given(premise: StatementPremise): Fact =
         given(nextAutoLabel(premise.label), premise)
 
-    fun infer(label: String, statement: StatementCall, vararg premises: Fact): Fact {
-        requireFactsBelongToThisProof(*premises)
-        val resolvedStatement = statement.resolveFromPremises(premises.map { premise -> premise.claim })
+    fun infer(label: String, statement: StatementCall, vararg premises: DerivationFact): Fact {
+        val proofPremises = premises.map(::given)
+        val resolvedStatement = statement.resolveFromPremises(proofPremises.map { premise -> premise.claim })
         return addStep(
             label = label,
             claim = resolvedStatement.conclusion,
             justification = StatementApplication(
                 statement = resolvedStatement.statement,
                 arguments = resolvedStatement.arguments,
-                premiseLabels = premises.map { it.label },
+                premiseLabels = proofPremises.map { it.label },
             ),
         )
     }
 
-    fun infer(statement: StatementCall, vararg premises: Fact): Fact =
+    override fun infer(statement: StatementCall, vararg premises: DerivationFact): Fact =
         infer(nextAutoLabel("step"), statement, *premises)
+
+    override fun infer(statement: StatementCall, premises: List<DerivationFact>): Fact =
+        infer(nextAutoLabel("step"), statement, *premises.toTypedArray())
 
     fun infer(
         label: String,
         statement: StatementDefinition,
-        vararg premises: Fact,
+        vararg premises: DerivationFact,
     ): Fact = infer(label, statement.autoCall(), *premises)
 
-    fun infer(
+    override fun infer(
         statement: StatementDefinition,
-        vararg premises: Fact,
+        vararg premises: DerivationFact,
     ): Fact = infer(nextAutoLabel("step"), statement, *premises)
 
-    fun justify(label: String, claim: Expr, justification: Justification, vararg facts: Fact): Fact {
-        requireFactsBelongToThisProof(*facts)
+    override fun infer(
+        statement: StatementDefinition,
+        premises: List<DerivationFact>,
+    ): Fact = infer(nextAutoLabel("step"), statement, *premises.toTypedArray())
+
+    fun justify(label: String, claim: Expr, justification: Justification, vararg facts: DerivationFact): Fact {
+        facts.forEach(::given)
         return addStep(label, claim, justification)
     }
 
-    fun justify(claim: Expr, justification: Justification, vararg facts: Fact): Fact =
-        justify(nextAutoLabel("step"), claim, justification, *facts)
+    override fun justify(claim: Expr, justification: Justification, vararg premises: DerivationFact): Fact =
+        justify(nextAutoLabel("step"), claim, justification, *premises)
 
-    fun todoAssume(
+    override fun justify(claim: Expr, justification: Justification, premises: List<DerivationFact>): Fact =
+        justify(nextAutoLabel("step"), claim, justification, *premises.toTypedArray())
+
+    override fun todoAssume(
         claim: Expr,
-        note: String? = null,
+        note: String?,
     ): Fact = todoAssume(
         label = nextAutoLabel("todo"),
         claim = claim,
         note = note,
     )
+
+    fun todoAssume(claim: Expr): Fact = todoAssume(claim, null)
 
     fun todoAssume(
         label: String,
@@ -127,7 +149,7 @@ class ProofBuilder internal constructor(
         )
     }
 
-    fun arbitrary(name: String, sort: Sort): Free {
+    override fun arbitrary(name: String, sort: Sort): Free {
         require(name !in statementParameterNames) {
             "Arbitrary variable '$name' conflicts with statement parameter '$name'. Choose a distinct name."
         }
@@ -156,7 +178,7 @@ class ProofBuilder internal constructor(
 
     fun declaredPremises(): List<Expr> = statementPremises.toList()
 
-    fun withLastFactFrom(blockDescription: String, block: ProofBuilder.() -> Unit): Fact {
+    override fun withLastFactFrom(blockDescription: String, block: DerivationScope.() -> Unit): Fact {
         val stepCountBefore = steps.size
         this.block()
         require(steps.size > stepCountBefore) {
@@ -165,6 +187,8 @@ class ProofBuilder internal constructor(
         val lastStep = steps.last()
         return Fact.fromProof(lastStep.label, lastStep.claim, proofContextId)
     }
+
+    override fun factLabel(fact: DerivationFact): String = given(fact).label
 
     private fun addStep(label: String, claim: Expr, justification: Justification): Fact {
         val normalizedClaim = claim.betaNormalize()

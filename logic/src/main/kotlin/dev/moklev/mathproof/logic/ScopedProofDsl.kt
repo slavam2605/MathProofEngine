@@ -3,6 +3,8 @@ package dev.moklev.mathproof.logic
 import dev.moklev.mathproof.kernel.Fact
 import dev.moklev.mathproof.kernel.Justification
 import dev.moklev.mathproof.kernel.ProofBuilder
+import dev.moklev.mathproof.kernel.DerivationFact
+import dev.moklev.mathproof.kernel.DerivationScope
 import dev.moklev.mathproof.kernel.StatementCall
 import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.kernel.StatementPremise
@@ -22,18 +24,18 @@ import kotlin.reflect.KClass
 class ScopedFact internal constructor(
     internal val context: AssumptionContext,
     internal val stepId: Int,
-    val claim: Expr,
-)
+    override val claim: Expr,
+) : DerivationFact
 
-interface ScopedAssumptionDependentCompilationContext<F> {
+interface ScopedAssumptionDependentCompilationContext {
     val assumption: Expr
     val conclusion: Expr
     val premiseStepIds: List<Int>
 
     fun premiseClaim(stepId: Int): Expr
-    fun implication(stepId: Int): F
-    fun infer(statement: StatementCall, vararg premises: F): F
-    fun justify(claim: Expr, justification: Justification, vararg premises: F): F
+    fun implication(stepId: Int): DerivationFact
+    fun infer(statement: StatementCall, vararg premises: DerivationFact): DerivationFact
+    fun justify(claim: Expr, justification: Justification, vararg premises: DerivationFact): DerivationFact
     fun sameProposition(left: Expr, right: Expr): Boolean
 }
 
@@ -42,10 +44,10 @@ interface ScopedJustificationSupport<J : Justification> {
 
     fun bindToPremises(justification: J, premiseLabels: List<String>): J = justification
 
-    fun <F> compileAssumptionDependent(
-        context: ScopedAssumptionDependentCompilationContext<F>,
+    fun compileAssumptionDependent(
+        context: ScopedAssumptionDependentCompilationContext,
         justification: J,
-    ): F? = null
+    ): DerivationFact? = null
 }
 
 fun registerScopedJustificationSupport(
@@ -74,39 +76,64 @@ private object ScopedJustificationSupportRegistry {
 
 class AssumptionScope internal constructor(
     private val context: AssumptionContext,
-) {
-    fun given(fact: ScopedFact): ScopedFact = context.referenceScopedFact(fact)
-
-    fun given(fact: Fact): ScopedFact = context.useOuterFact(fact)
-
-    fun given(premise: StatementPremise): ScopedFact = context.usePremise(premise)
-
-    fun infer(statement: StatementCall, vararg premises: ScopedFact): ScopedFact {
-        val resolvedStatement = statement.resolveFromPremises(premises.map { premise -> premise.claim })
-        return context.infer(resolvedStatement, premises.toList())
+) : DerivationScope {
+    override fun given(fact: DerivationFact): ScopedFact = when (fact) {
+        is ScopedFact -> context.referenceScopedFact(fact)
+        is Fact -> context.useOuterFact(fact)
+        else -> throw IllegalArgumentException(
+            "Assumption scope can only import Fact/ScopedFact handles, but got '${fact::class.simpleName ?: "unknown"}'.",
+        )
     }
 
-    fun infer(
+    override fun given(premise: StatementPremise): ScopedFact = context.usePremise(premise)
+
+    override fun infer(statement: StatementCall, vararg premises: DerivationFact): ScopedFact {
+        val scopedPremises = premises.map(::given)
+        val resolvedStatement = statement.resolveFromPremises(scopedPremises.map { premise -> premise.claim })
+        return context.infer(resolvedStatement, scopedPremises)
+    }
+
+    override fun infer(statement: StatementCall, premises: List<DerivationFact>): ScopedFact {
+        val scopedPremises = premises.map(::given)
+        val resolvedStatement = statement.resolveFromPremises(scopedPremises.map { premise -> premise.claim })
+        return context.infer(resolvedStatement, scopedPremises)
+    }
+
+    override fun infer(
         statement: StatementDefinition,
-        vararg premises: ScopedFact,
+        vararg premises: DerivationFact,
     ): ScopedFact =
         infer(
             statement.autoCall(),
             *premises,
         )
 
-    fun justify(claim: Expr, justification: Justification, vararg premises: ScopedFact): ScopedFact =
-        context.justify(claim, justification, premises.toList())
+    override fun infer(
+        statement: StatementDefinition,
+        premises: List<DerivationFact>,
+    ): ScopedFact =
+        infer(
+            statement.autoCall(),
+            *premises.toTypedArray(),
+        )
 
-    fun todoAssume(
+    override fun justify(claim: Expr, justification: Justification, vararg premises: DerivationFact): ScopedFact =
+        context.justify(claim, justification, premises.map(::given))
+
+    override fun justify(claim: Expr, justification: Justification, premises: List<DerivationFact>): ScopedFact =
+        context.justify(claim, justification, premises.map(::given))
+
+    override fun todoAssume(
         claim: Expr,
-        note: String? = null,
+        note: String?,
     ): ScopedFact = justify(
         claim = claim,
         justification = TodoAssumption(note),
     )
 
-    fun arbitrary(name: String, sort: Sort): Free = context.arbitrary(name, sort)
+    fun todoAssume(claim: Expr): ScopedFact = todoAssume(claim, null)
+
+    override fun arbitrary(name: String, sort: Sort): Free = context.arbitrary(name, sort)
 
     fun hasFreeSymbolInOpenAssumptions(symbol: String): Boolean =
         context.hasFreeSymbolInOpenAssumptions(symbol)
@@ -114,56 +141,13 @@ class AssumptionScope internal constructor(
     fun hasFreeSymbolInStatementPremises(symbol: String): Boolean =
         context.hasFreeSymbolInStatementPremises(symbol)
 
-    fun applyByMpChain(statement: StatementCall, vararg facts: ScopedFact): ScopedFact {
-        val resolvedStatement = inferCallFromMpChainFacts(
-            statement = statement,
-            factClaims = facts.map { fact -> fact.claim },
-        )
-        require(resolvedStatement.premises.isEmpty()) {
-            "applyByMpChain expects a premise-free theorem, but statement '${resolvedStatement.statement.name}' has ${resolvedStatement.premises.size} declared premise(s)."
-        }
-
-        var current = infer(resolvedStatement)
-        facts.forEachIndexed { index, fact ->
-            val resolvedFact = given(fact)
-            val implication = current.claim.implicationPartsOrNull()
-                ?: throw IllegalArgumentException(
-                    "applyByMpChain expected an implication before applying fact ${index + 1}, but current claim is '${current.claim}'.",
-                )
-
-            require(sameProposition(resolvedFact.claim, implication.left)) {
-                "applyByMpChain fact ${index + 1} mismatch: expected '${implication.left}', but got '${resolvedFact.claim}'."
-            }
-
-            current = infer(
-                LogicAxioms.modusPonens(implication.left, implication.right),
-                resolvedFact,
-                current,
-            )
-        }
-
-        return current
-    }
-
-    fun applyByMpChain(
-        statement: StatementDefinition,
-        vararg facts: ScopedFact,
-    ): ScopedFact =
-        applyByMpChain(
-            inferCallFromMpChainFacts(
-                statement = statement.autoCall(),
-                factClaims = facts.map { fact -> fact.claim },
-            ),
-            *facts,
-        )
-
     fun assume(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): ScopedFact =
         context.assume(assume, block)
 
     fun contradiction(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): ScopedFact =
         context.contradiction(assume, block)
 
-    fun withLastFactFrom(blockDescription: String, block: AssumptionScope.() -> Unit): ScopedFact {
+    override fun withLastFactFrom(blockDescription: String, block: DerivationScope.() -> Unit): ScopedFact {
         val stepCountBefore = context.currentStepCount()
         this.block()
         return context.requireLastDerivedStepSince(stepCountBefore, blockDescription)
@@ -199,54 +183,100 @@ fun ProofBuilder.contradiction(assume: Expr, block: AssumptionScope.(ScopedFact)
     )
 }
 
-fun ProofBuilder.applyByMpChain(
-    statement: StatementDefinition,
-    vararg facts: Fact,
-): Fact =
-    applyByMpChain(
-        inferCallFromMpChainFacts(
-            statement = statement.autoCall(),
-            factClaims = facts.map { fact -> fact.claim },
-        ),
-        *facts,
-    )
+/**
+ * Generic bridge for modules above `logic` that need assume-discharge without concrete
+ * dependency on AssumptionScope/ScopedFact.
+ */
+fun DerivationScope.assumeInLogicScope(
+    assumption: Expr,
+    block: DerivationScope.(DerivationFact) -> Unit,
+): DerivationFact =
+    when (this) {
+        is ProofBuilder -> assume(assumption) { scopedFact ->
+            block(this, scopedFact)
+        }
+        is AssumptionScope -> assume(assumption) { scopedFact ->
+            block(this, scopedFact)
+        }
+        else -> throw IllegalArgumentException(
+            "This scope does not support logic assumptions: '${this::class.simpleName ?: "unknown"}'.",
+        )
+    }
 
-fun ProofBuilder.applyByMpChain(statement: StatementCall, vararg facts: Fact): Fact {
-    val resolvedStatement = inferCallFromMpChainFacts(
+fun DerivationScope.validateGeneralizationVariableInLogicScope(variable: Free) {
+    val appearsInPremises: Boolean
+    val appearsInAssumptions: Boolean
+    when (this) {
+        is ProofBuilder -> {
+            appearsInPremises = declaredPremises().any { premise ->
+                premise.containsFreeSymbol(variable.symbol)
+            }
+            // Root proof scope has no open assumptions.
+            appearsInAssumptions = false
+        }
+        is AssumptionScope -> {
+            appearsInPremises = hasFreeSymbolInStatementPremises(variable.symbol)
+            // Includes current and all parent assumptions.
+            appearsInAssumptions = hasFreeSymbolInOpenAssumptions(variable.symbol)
+        }
+        else -> throw IllegalArgumentException(
+            "Generalization safety checks require a logic-aware derivation scope, but got '${this::class.simpleName ?: "unknown"}'.",
+        )
+    }
+    require(!appearsInPremises) {
+        "Universal generalization over '${variable.displayName}' is invalid because this variable appears in a statement premise."
+    }
+    require(!appearsInAssumptions) {
+        "Universal generalization over '${variable.displayName}' is invalid because this variable appears in an open assumption."
+    }
+}
+
+fun DerivationScope.applyMp(statement: StatementDefinition, vararg facts: DerivationFact): DerivationFact =
+    applyMpInternal(this, statement.autoCall(), facts)
+
+fun DerivationScope.applyMp(statement: StatementCall, vararg facts: DerivationFact): DerivationFact =
+    applyMpInternal(this, statement, facts)
+
+private fun applyMpInternal(
+    scope: DerivationScope,
+    statement: StatementCall,
+    facts: Array<out DerivationFact>,
+): DerivationFact {
+    val resolvedStatement = inferCallFromApplyMpFacts(
         statement = statement,
         factClaims = facts.map { fact -> fact.claim },
     )
     require(resolvedStatement.premises.isEmpty()) {
-        "applyByMpChain expects a premise-free theorem, but statement '${resolvedStatement.statement.name}' has ${resolvedStatement.premises.size} declared premise(s)."
+        "applyMp expects a premise-free theorem, but statement '${resolvedStatement.statement.name}' has ${resolvedStatement.premises.size} declared premise(s)."
     }
 
-    var current = infer(resolvedStatement)
+    var current = scope.infer(resolvedStatement, emptyList())
     facts.forEachIndexed { index, fact ->
+        val resolvedFact = scope.given(fact)
         val implication = current.claim.implicationPartsOrNull()
             ?: throw IllegalArgumentException(
-                "applyByMpChain expected an implication before applying fact ${index + 1}, but current claim is '${current.claim}'.",
+                "applyMp expected an implication before applying fact ${index + 1}, but current claim is '${current.claim}'.",
             )
 
-        require(sameProposition(fact.claim, implication.left)) {
-            "applyByMpChain fact ${index + 1} mismatch: expected '${implication.left}', but got '${fact.claim}'."
+        require(sameProposition(resolvedFact.claim, implication.left)) {
+            "applyMp fact ${index + 1} mismatch: expected '${implication.left}', but got '${resolvedFact.claim}'."
         }
 
-        current = infer(
+        current = scope.infer(
             LogicAxioms.modusPonens(implication.left, implication.right),
-            fact,
-            current,
+            listOf(resolvedFact, current),
         )
     }
 
     return current
 }
 
-private fun inferCallFromMpChainFacts(
+private fun inferCallFromApplyMpFacts(
     statement: StatementCall,
     factClaims: List<Expr>,
 ): StatementCall {
     require(statement.statement.premises.isEmpty()) {
-        "applyByMpChain expects a premise-free theorem, but statement '${statement.statement.name}' has ${statement.statement.premises.size} declared premise(s)."
+        "applyMp expects a premise-free theorem, but statement '${statement.statement.name}' has ${statement.statement.premises.size} declared premise(s)."
     }
 
     var currentPattern = statement.conclusion
@@ -254,7 +284,7 @@ private fun inferCallFromMpChainFacts(
     factClaims.forEachIndexed { index, factClaim ->
         val implication = currentPattern.implicationPartsOrNull()
             ?: throw IllegalArgumentException(
-                "Cannot infer arguments for statement '${statement.statement.name}' from applyByMpChain facts: expected an implication before fact ${index + 1}, but pattern is '$currentPattern'.",
+                "Cannot infer arguments for statement '${statement.statement.name}' from applyMp facts: expected an implication before fact ${index + 1}, but pattern is '$currentPattern'.",
             )
         matches += implication.left to factClaim
         currentPattern = implication.right
@@ -262,7 +292,7 @@ private fun inferCallFromMpChainFacts(
 
     return statement.resolveFromMatches(
         matches = matches,
-        sourceDescription = "applyByMpChain facts",
+        sourceDescription = "applyMp facts",
     )
 }
 
@@ -431,20 +461,28 @@ internal class AssumptionContext(
 
     fun compileIntoProofBuilder(builder: ProofBuilder, resultStepId: Int): Fact {
         val target = ProofBuilderCompilationTarget(builder)
-        return DeductionCompiler(
+        val compiled = DeductionCompiler(
             assumption = assumptionClaim,
             steps = steps.toList(),
             target = target,
         ).compile(resultStepId)
+        return compiled as? Fact
+            ?: throw IllegalStateException(
+                "Top-level scoped compilation must produce Fact handles, but got '${compiled::class.simpleName ?: "unknown"}'.",
+            )
     }
 
     fun compileIntoContext(parentContext: AssumptionContext, resultStepId: Int): ScopedFact {
         val target = AssumptionContextCompilationTarget(parentContext)
-        return DeductionCompiler(
+        val compiled = DeductionCompiler(
             assumption = assumptionClaim,
             steps = steps.toList(),
             target = target,
         ).compile(resultStepId)
+        return compiled as? ScopedFact
+            ?: throw IllegalStateException(
+                "Nested scoped compilation must produce ScopedFact handles, but got '${compiled::class.simpleName ?: "unknown"}'.",
+            )
     }
 
     fun currentStepCount(): Int = steps.size
@@ -543,18 +581,18 @@ private sealed interface ScopedStepOrigin {
     ) : ScopedStepOrigin
 }
 
-private interface CompilationTarget<F> {
-    fun givenPremise(premise: StatementPremise): F
-    fun givenOuterFact(fact: Fact): F
-    fun givenAncestorFact(fact: ScopedFact): F
-    fun infer(statement: StatementCall, premises: List<F>): F
-    fun justify(claim: Expr, justification: Justification, premises: List<F>): F
-    fun labelOf(fact: F): String?
+private interface CompilationTarget {
+    fun givenPremise(premise: StatementPremise): DerivationFact
+    fun givenOuterFact(fact: Fact): DerivationFact
+    fun givenAncestorFact(fact: ScopedFact): DerivationFact
+    fun infer(statement: StatementCall, premises: List<DerivationFact>): DerivationFact
+    fun justify(claim: Expr, justification: Justification, premises: List<DerivationFact>): DerivationFact
+    fun labelOf(fact: DerivationFact): String?
 }
 
 private class ProofBuilderCompilationTarget(
     private val builder: ProofBuilder,
-) : CompilationTarget<Fact> {
+) : CompilationTarget {
     override fun givenPremise(premise: StatementPremise): Fact = builder.given(premise)
 
     override fun givenOuterFact(fact: Fact): Fact = fact
@@ -563,44 +601,54 @@ private class ProofBuilderCompilationTarget(
         throw IllegalStateException("Top-level scoped compilation cannot import ancestor scoped facts.")
     }
 
-    override fun infer(statement: StatementCall, premises: List<Fact>): Fact =
-        builder.infer(statement, *premises.toTypedArray())
+    override fun infer(statement: StatementCall, premises: List<DerivationFact>): DerivationFact =
+        builder.infer(statement, premises)
 
-    override fun justify(claim: Expr, justification: Justification, premises: List<Fact>): Fact =
-        builder.justify(claim, justification, *premises.toTypedArray())
+    override fun justify(claim: Expr, justification: Justification, premises: List<DerivationFact>): DerivationFact =
+        builder.justify(claim, justification, premises)
 
-    override fun labelOf(fact: Fact): String = fact.label
+    override fun labelOf(fact: DerivationFact): String? = (fact as? Fact)?.label
 }
 
 private class AssumptionContextCompilationTarget(
     private val context: AssumptionContext,
-) : CompilationTarget<ScopedFact> {
+) : CompilationTarget {
     override fun givenPremise(premise: StatementPremise): ScopedFact = context.usePremise(premise)
 
     override fun givenOuterFact(fact: Fact): ScopedFact = context.useOuterFact(fact)
 
     override fun givenAncestorFact(fact: ScopedFact): ScopedFact = context.useScopedFact(fact)
 
-    override fun infer(statement: StatementCall, premises: List<ScopedFact>): ScopedFact =
-        context.infer(statement, premises)
+    override fun infer(statement: StatementCall, premises: List<DerivationFact>): DerivationFact =
+        context.infer(statement, premises.map { premise ->
+            premise as? ScopedFact
+                ?: throw IllegalArgumentException(
+                    "Nested scoped compilation expected ScopedFact premises, but got '${premise::class.simpleName ?: "unknown"}'.",
+                )
+        })
 
-    override fun justify(claim: Expr, justification: Justification, premises: List<ScopedFact>): ScopedFact =
-        context.justify(claim, justification, premises)
+    override fun justify(claim: Expr, justification: Justification, premises: List<DerivationFact>): DerivationFact =
+        context.justify(claim, justification, premises.map { premise ->
+            premise as? ScopedFact
+                ?: throw IllegalArgumentException(
+                    "Nested scoped compilation expected ScopedFact premises, but got '${premise::class.simpleName ?: "unknown"}'.",
+                )
+        })
 
-    override fun labelOf(fact: ScopedFact): String? = null
+    override fun labelOf(fact: DerivationFact): String? = null
 }
 
-private class DeductionCompiler<F>(
+private class DeductionCompiler(
     private val assumption: Expr,
     steps: List<ScopedStep>,
-    private val target: CompilationTarget<F>,
+    private val target: CompilationTarget,
 ) {
     private val stepsByIdMap = steps.associateBy { it.id }
     private val orderedSteps = steps
-    private val implicationByStepId = linkedMapOf<Int, F>()
-    private val rawByStepId = linkedMapOf<Int, F>()
+    private val implicationByStepId = linkedMapOf<Int, DerivationFact>()
+    private val rawByStepId = linkedMapOf<Int, DerivationFact>()
 
-    fun compile(resultStepId: Int): F {
+    fun compile(resultStepId: Int): DerivationFact {
         orderedSteps.forEach { step ->
             implicationByStepId[step.id] = compileImplication(step)
         }
@@ -609,7 +657,7 @@ private class DeductionCompiler<F>(
         }
     }
 
-    private fun compileImplication(step: ScopedStep): F {
+    private fun compileImplication(step: ScopedStep): DerivationFact {
         if (step.origin is ScopedStepOrigin.Assumption) {
             return target.infer(LogicLibrary.implicationIdentity(assumption), emptyList())
         }
@@ -642,7 +690,7 @@ private class DeductionCompiler<F>(
     private fun compileAssumptionDependentModusPonens(
         step: ScopedStep,
         origin: ScopedStepOrigin.DerivedModusPonens,
-    ): F {
+    ): DerivationFact {
         val premiseStepId = origin.premiseStepIds[0]
         val implicationStepId = origin.premiseStepIds[1]
         val premiseStep = stepById(premiseStepId)
@@ -675,28 +723,28 @@ private class DeductionCompiler<F>(
     private fun compileAssumptionDependentExternal(
         step: ScopedStep,
         origin: ScopedStepOrigin.DerivedExternal,
-    ): F {
+    ): DerivationFact {
         val support = ScopedJustificationSupportRegistry.supportFor(origin.justification)
             ?: throw IllegalArgumentException(
                 "Scoped assumption compiler currently supports assumption-dependent steps only through modus ponens; justification '${origin.justification.displayName}' depends on the local assumption.",
             )
 
-        val context = object : ScopedAssumptionDependentCompilationContext<F> {
+        val context = object : ScopedAssumptionDependentCompilationContext {
             override val assumption: Expr = this@DeductionCompiler.assumption
             override val conclusion: Expr = step.claim
             override val premiseStepIds: List<Int> = origin.premiseStepIds
 
             override fun premiseClaim(stepId: Int): Expr = stepById(stepId).claim
 
-            override fun implication(stepId: Int): F =
+            override fun implication(stepId: Int): DerivationFact =
                 requireNotNull(implicationByStepId[stepId]) {
                     "Missing compiled implication for premise step $stepId."
                 }
 
-            override fun infer(statement: StatementCall, vararg premises: F): F =
+            override fun infer(statement: StatementCall, vararg premises: DerivationFact): DerivationFact =
                 target.infer(statement, premises.toList())
 
-            override fun justify(claim: Expr, justification: Justification, vararg premises: F): F {
+            override fun justify(claim: Expr, justification: Justification, vararg premises: DerivationFact): DerivationFact {
                 val premiseList = premises.toList()
                 return target.justify(
                     claim = claim,
@@ -715,7 +763,7 @@ private class DeductionCompiler<F>(
             )
     }
 
-    private fun replayRaw(stepId: Int): F {
+    private fun replayRaw(stepId: Int): DerivationFact {
         rawByStepId[stepId]?.let { return it }
         val step = stepById(stepId)
         val rebuilt = when (val origin = step.origin) {
@@ -746,7 +794,7 @@ private class DeductionCompiler<F>(
         return rebuilt
     }
 
-    private fun bindJustificationToPremises(justification: Justification, premises: List<F>): Justification {
+    private fun bindJustificationToPremises(justification: Justification, premises: List<DerivationFact>): Justification {
         val premiseLabels = premises.map { fact -> target.labelOf(fact) }
         if (premiseLabels.any { label -> label == null }) {
             return justification

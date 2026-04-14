@@ -4,7 +4,7 @@ import dev.moklev.mathproof.core.constant
 import dev.moklev.mathproof.core.statement
 import dev.moklev.mathproof.kernel.ProofVerifier
 import dev.moklev.mathproof.kernel.StatementDefinition
-import dev.moklev.mathproof.logic.applyByMpChain
+import dev.moklev.mathproof.logic.applyMp
 import dev.moklev.mathproof.model.NamedSort
 import dev.moklev.mathproof.testutils.discoverStatementsChecked
 import kotlin.test.Test
@@ -50,12 +50,12 @@ class EqualityModuleTest {
                 proof {
                     val givenXy = given(xy)
                     val givenZy = given(zy)
-                    applyByMpChain(EqualityLibrary.transitivity(x, y, z), givenXy, givenZy)
+                    applyMp(EqualityLibrary.transitivity(x, y, z), givenXy, givenZy)
                 }
             }
         }
 
-        assertTrue(error.message!!.contains("applyByMpChain fact 2 mismatch"))
+        assertTrue(error.message!!.contains("applyMp fact 2 mismatch"))
         assertTrue(error.message!!.contains("expected 'y = z'"))
         assertTrue(error.message!!.contains("got 'z = y'"))
     }
@@ -73,12 +73,12 @@ class EqualityModuleTest {
                 conclusion(x eq z)
                 proof {
                     val givenXy = given(xy)
-                    applyByMpChain(EqualityLibrary.transitivity(x, y, z), givenXy, givenXy)
+                    applyMp(EqualityLibrary.transitivity(x, y, z), givenXy, givenXy)
                 }
             }
         }
 
-        assertTrue(error.message!!.contains("applyByMpChain fact 2 mismatch"))
+        assertTrue(error.message!!.contains("applyMp fact 2 mismatch"))
         assertTrue(error.message!!.contains("expected 'y = z'"))
         assertTrue(error.message!!.contains("got 'x = y'"))
     }

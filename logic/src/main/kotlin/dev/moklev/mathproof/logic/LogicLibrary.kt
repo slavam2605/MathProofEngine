@@ -105,7 +105,7 @@ object LogicLibrary {
                 identity,
                 distribute
             )
-            applyByMpChain(
+            applyMp(
                 hypotheticalSyllogism(p, pq implies p, pq implies q),
                 projectPremise,
                 implicationBridge
@@ -126,18 +126,18 @@ object LogicLibrary {
             val phi = infer(implicationIdentity(p)) // any tautology is needed here
             val step2 = infer(hilbertAxiom3(!p, !phi.claim))
             val step3 = infer(hilbertAxiom3(phi.claim, p))
-            val step4 = applyByMpChain(hypotheticalSyllogism(
+            val step4 = applyMp(hypotheticalSyllogism(
                 !!phi.claim implies !!p,
                 !p implies !phi.claim,
                 phi.claim implies p
             ), step2, step3)
             val step5 = infer(hilbertAxiom1(!!p, !!phi.claim))
-            val step6 = applyByMpChain(hypotheticalSyllogism(
+            val step6 = applyMp(hypotheticalSyllogism(
                 !!p, !!phi.claim implies !!p, phi.claim implies p
             ), step5, step4)
             val step7 = infer(internalizedModusPonens(phi.claim, p))
             val step8 = infer(modusPonens(phi.claim, (phi.claim implies p) implies p), phi, step7)
-            applyByMpChain(hypotheticalSyllogism(
+            applyMp(hypotheticalSyllogism(
                 !!p, phi.claim implies p, p
             ), step6, step8)
         }
@@ -172,7 +172,7 @@ object LogicLibrary {
         proof {
             val step1 = infer(hilbertAxiom1(!p, !q))
             val step2 = infer(hilbertAxiom3(p, q))
-            applyByMpChain(hypotheticalSyllogism(!p, !q implies !p, p implies q), step1, step2)
+            applyMp(hypotheticalSyllogism(!p, !q implies !p, p implies q), step1, step2)
         }
     }
 
@@ -189,7 +189,7 @@ object LogicLibrary {
         proof {
             assume(p) { pt ->
                 assume(!p) { pf ->
-                    applyByMpChain(exFalso(p, q), pf, pt)
+                    applyMp(exFalso(p, q), pf, pt)
                 }
             }
         }
@@ -231,9 +231,9 @@ object LogicLibrary {
             assume(p implies q) { pq ->
                 assume(!q) { notQ ->
                     val nnPP = infer(doubleNegationElimination(p)) // !!p -> p
-                    val nnPQ = applyByMpChain(hypotheticalSyllogism(!!p, p, q), nnPP, pq) // !!p -> q
+                    val nnPQ = applyMp(hypotheticalSyllogism(!!p, p, q), nnPP, pq) // !!p -> q
                     val qnnQ = infer(doubleNegation(q)) // q -> !!q
-                    val nnPnnQ = applyByMpChain(hypotheticalSyllogism(!!p, q, !!q), nnPQ, qnnQ) // !!p -> !!q
+                    val nnPnnQ = applyMp(hypotheticalSyllogism(!!p, q, !!q), nnPQ, qnnQ) // !!p -> !!q
                     val h3 = infer(hilbertAxiom3(!q, !p)) // (!!p -> !!q) -> (!q -> !p)
                     val nQnP = infer(modusPonens(!!p implies !!q, !q implies !p), nnPnnQ, h3) // !q -> !p
                     infer(modusPonens(!q, !p), notQ, nQnP) // !p
@@ -254,9 +254,9 @@ object LogicLibrary {
         conclusion((p and q) implies (q and p))
         proof {
             assume(p and q) { pq ->
-                val trueP = applyByMpChain(LogicAxioms.andEliminationLeft(p, q), pq)
-                val trueQ = applyByMpChain(LogicAxioms.andEliminationRight(p, q), pq)
-                applyByMpChain(LogicAxioms.andIntroduction(q, p), trueQ, trueP)
+                val trueP = applyMp(LogicAxioms.andEliminationLeft(p, q), pq)
+                val trueQ = applyMp(LogicAxioms.andEliminationRight(p, q), pq)
+                applyMp(LogicAxioms.andIntroduction(q, p), trueQ, trueP)
             }
         }
     }
@@ -274,16 +274,16 @@ object LogicLibrary {
         proof {
             assume(!(p or q)) { npq -> // !(p or q)
                 val np = contradiction(!!p) { nnp -> // !!p
-                    val pt = applyByMpChain(doubleNegationElimination, nnp) // p
-                    val pq = applyByMpChain(orIntroductionLeft(auto(), q), pt) // p or q
-                    applyByMpChain(exFalso(auto(), !p), npq, pq) // !p
+                    val pt = applyMp(doubleNegationElimination, nnp) // p
+                    val pq = applyMp(orIntroductionLeft(auto(), q), pt) // p or q
+                    applyMp(exFalso(auto(), !p), npq, pq) // !p
                 }
                 val nq = contradiction(!!q) { nnq -> // !!q
-                    val qt = applyByMpChain(doubleNegationElimination, nnq) // q
-                    val pq = applyByMpChain(orIntroductionRight(p, auto()), qt) // p or q
-                    applyByMpChain(exFalso(auto(), !q), npq, pq) // !q
+                    val qt = applyMp(doubleNegationElimination, nnq) // q
+                    val pq = applyMp(orIntroductionRight(p, auto()), qt) // p or q
+                    applyMp(exFalso(auto(), !q), npq, pq) // !q
                 }
-                applyByMpChain(LogicAxioms.andIntroduction, np, nq)
+                applyMp(LogicAxioms.andIntroduction, np, nq)
             }
         }
     }

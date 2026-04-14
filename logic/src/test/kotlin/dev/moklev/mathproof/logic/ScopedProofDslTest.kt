@@ -134,7 +134,7 @@ class ScopedProofDslTest {
             proof {
                 val givenP = given(pPremise)
                 val givenNotP = given(notPPremise)
-                applyByMpChain(LogicLibrary.exFalso(p, q), givenNotP, givenP)
+                applyMp(LogicLibrary.exFalso(p, q), givenNotP, givenP)
             }
         }
 
@@ -150,7 +150,7 @@ class ScopedProofDslTest {
             proof {
                 assume(p) { assumption ->
                     val givenP = given(assumption)
-                    applyByMpChain(LogicLibrary.implicationIdentity(p), givenP)
+                    applyMp(LogicLibrary.implicationIdentity(p), givenP)
                 }
             }
         }
@@ -167,7 +167,7 @@ class ScopedProofDslTest {
             proof {
                 assume(p) { assumption ->
                     val givenP = given(assumption)
-                    applyByMpChain(LogicLibrary.implicationIdentity, givenP)
+                    applyMp(LogicLibrary.implicationIdentity, givenP)
                 }
             }
         }

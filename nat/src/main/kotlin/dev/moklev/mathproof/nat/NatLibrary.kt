@@ -17,7 +17,7 @@ import dev.moklev.mathproof.logic.LogicAxioms
 import dev.moklev.mathproof.logic.LogicAxioms.modusPonens
 import dev.moklev.mathproof.logic.LogicLibrary
 import dev.moklev.mathproof.logic.and
-import dev.moklev.mathproof.logic.applyByMpChain
+import dev.moklev.mathproof.logic.applyMp
 import dev.moklev.mathproof.logic.assume
 import dev.moklev.mathproof.logic.implies
 import dev.moklev.mathproof.logic.not
@@ -47,8 +47,8 @@ object NatLibrary {
                 } // 0 + y == y -> 0 + S(y) == S(y)
             }
 
-            val forallY = applyByMpChain(NatAxioms.induction, base, step)
-            applyByMpChain(FirstOrderAxioms.forallInstantiation(auto(), x), forallY)
+            val forallY = applyMp(NatAxioms.induction, base, step)
+            applyMp(FirstOrderAxioms.forallInstantiation(auto(), x), forallY)
         }
     }
 
@@ -80,8 +80,8 @@ object NatLibrary {
                 }
             }
 
-            val forallT = applyByMpChain(NatAxioms.induction, base, step)
-            applyByMpChain(FirstOrderAxioms.forallInstantiation(auto(), y), forallT)
+            val forallT = applyMp(NatAxioms.induction, base, step)
+            applyMp(FirstOrderAxioms.forallInstantiation(auto(), y), forallT)
         }
     }
 
@@ -113,7 +113,7 @@ object NatLibrary {
         proof {
             val step1 = infer(addCommutative(1.n, x)) // S(0) + x == x + S(0)
             val step2 = infer(addOneRight(x)) // x + S(0) == S(x)
-            applyByMpChain(EqualityLibrary.transitivity, step1, step2) // S(0) + x == S(x)
+            applyMp(EqualityLibrary.transitivity, step1, step2) // S(0) + x == S(x)
         }
     }
 
@@ -129,7 +129,7 @@ object NatLibrary {
         proof {
             val oxx = infer(addZeroLeft(x)) // 0 + x == x
             val ex = oxx.introduceExists(x, Occurences.First)
-            applyByMpChain(NatAxioms.leqIntroduction, ex)
+            applyMp(NatAxioms.leqIntroduction, ex)
         }
     }
 
@@ -175,18 +175,18 @@ object NatLibrary {
                     assume((succ(n) + b) eq succ(n)) { saBsA -> // S(n) + b == S(n)
                         val sabAsB = infer(addSuccShift(n, b)) // S(n) + b == n + S(b)
                         val asbSAB = infer(NatAxioms.addDefinitionSucc(n, b)) // n + S(b) == S(n + b)
-                        val sabSAB = applyByMpChain(EqualityLibrary.transitivity, sabAsB, asbSAB) // S(n) + b == S(n + b)
-                        val sabSABRev = applyByMpChain(EqualityLibrary.symmetry, sabSAB) // S(n + b) == S(n) + b
-                        val succEq = applyByMpChain(EqualityLibrary.transitivity, sabSABRev, saBsA) // S(n + b) == S(n)
-                        val aba = applyByMpChain(NatAxioms.succInjective, succEq) // n + b == n
+                        val sabSAB = applyMp(EqualityLibrary.transitivity, sabAsB, asbSAB) // S(n) + b == S(n + b)
+                        val sabSABRev = applyMp(EqualityLibrary.symmetry, sabSAB) // S(n + b) == S(n) + b
+                        val succEq = applyMp(EqualityLibrary.transitivity, sabSABRev, saBsA) // S(n + b) == S(n)
+                        val aba = applyMp(NatAxioms.succInjective, succEq) // n + b == n
                         infer(modusPonens, aba, aBAbZero)
                     }
                 } // ((n + b == n) -> b == 0) -> (S(n) + b == S(n)) -> b == 0
             } // ∀n. ((n + b == n) -> b == 0) -> (S(n) + b == S(n)) -> b == 0
 
-            val forallN = applyByMpChain(NatAxioms.induction, base, step)
+            val forallN = applyMp(NatAxioms.induction, base, step)
 
-            applyByMpChain(FirstOrderAxioms.forallInstantiation(auto(), a), forallN)
+            applyMp(FirstOrderAxioms.forallInstantiation(auto(), a), forallN)
         }
     }
 
@@ -202,7 +202,7 @@ object NatLibrary {
         conclusion(!(a eq 0.n) implies targetF(a))
         proof {
             val zeroId = infer(EqualityAxioms.reflexivity(0.n)) // 0 == 0
-            val base = applyByMpChain(
+            val base = applyMp(
                 LogicLibrary.exFalsoAlt(auto(), targetF(0.n)),
                 zeroId,
             ) // !(0 == 0) -> target(0)
@@ -211,15 +211,15 @@ object NatLibrary {
                 assume(!(x eq 0.n) implies targetF(x)) { xStep -> // !(x == 0) -> target(x)
                     val sxId = infer(EqualityAxioms.reflexivity(succ(x))) // S(x) == S(x)
                     val existsTarget = sxId.introduceExists(x, Occurences.First)
-                    applyByMpChain(
+                    applyMp(
                         LogicAxioms.hilbertAxiom1(auto(), !(succ(x) eq 0.n)),
                         existsTarget,
                     )
                 }
             }
 
-            val forallResult = applyByMpChain(NatAxioms.induction, base, step)
-            applyByMpChain(FirstOrderAxioms.forallInstantiation(auto(), a), forallResult)
+            val forallResult = applyMp(NatAxioms.induction, base, step)
+            applyMp(FirstOrderAxioms.forallInstantiation(auto(), a), forallResult)
         }
     }
 
@@ -236,17 +236,17 @@ object NatLibrary {
         proof {
             assume((a + b) eq 0.n) { abZero -> // a + b == 0
                 contradiction(!(a eq 0.n)) { naZero ->
-                    val existsX = applyByMpChain(nonZeroHasPredecessor, naZero) // ∃x. S(x) == a
+                    val existsX = applyMp(nonZeroHasPredecessor, naZero) // ∃x. S(x) == a
                     eliminateExists(existsX, "x") { x, sxa ->
-                        val asx = applyByMpChain(EqualityLibrary.symmetry, sxa) // a == S(x)
+                        val asx = applyMp(EqualityLibrary.symmetry, sxa) // a == S(x)
                         val sxbZero = abZero.replace(asx) // S(x) + b == 0
                         val bsxSXB = infer(addCommutative(b, succ(x))) // b + S(x) == S(x) + b
-                        val bsxZero = applyByMpChain(EqualityLibrary.transitivity, bsxSXB, sxbZero) // b + S(x) == 0
-                        val succEq = applyByMpChain(NatAxioms.addDefinitionSucc(b, x)) // b + S(x) == S(b + x)
-                        val succEqRev = applyByMpChain(EqualityLibrary.symmetry, succEq) // S(b + x) == b + S(x)
-                        val succZero = applyByMpChain(EqualityLibrary.transitivity, succEqRev, bsxZero) // S(b + x) == 0
+                        val bsxZero = applyMp(EqualityLibrary.transitivity, bsxSXB, sxbZero) // b + S(x) == 0
+                        val succEq = applyMp(NatAxioms.addDefinitionSucc(b, x)) // b + S(x) == S(b + x)
+                        val succEqRev = applyMp(EqualityLibrary.symmetry, succEq) // S(b + x) == b + S(x)
+                        val succZero = applyMp(EqualityLibrary.transitivity, succEqRev, bsxZero) // S(b + x) == 0
                         val succNotZero = infer(NatAxioms.succNotZero(b + x)) // !(S(b + x) = 0)
-                        applyByMpChain(LogicLibrary.exFalso(auto(), a eq 0.n), succNotZero, succZero)
+                        applyMp(LogicLibrary.exFalso(auto(), a eq 0.n), succNotZero, succZero)
                     }
                 }
             }
@@ -267,7 +267,7 @@ object NatLibrary {
             assume((a + b) eq 0.n) { abZero -> // a + b == 0
                 val abBA = infer(addCommutative(a, b)) // a + b == b + a
                 val baZero = abZero.replace(abBA) // b + a == 0
-                applyByMpChain(sumZeroImpliesLeftZero, baZero)
+                applyMp(sumZeroImpliesLeftZero, baZero)
             }
         }
     }
@@ -284,9 +284,9 @@ object NatLibrary {
         conclusion(((a + b) eq 0.n) implies ((a eq 0.n) and (b eq 0.n)))
         proof {
             assume((a + b) eq 0.n) { abZero ->
-                val aZero = applyByMpChain(sumZeroImpliesLeftZero, abZero)
-                val bZero = applyByMpChain(sumZeroImpliesRightZero, abZero)
-                applyByMpChain(LogicAxioms.andIntroduction, aZero, bZero)
+                val aZero = applyMp(sumZeroImpliesLeftZero, abZero)
+                val bZero = applyMp(sumZeroImpliesRightZero, abZero)
+                applyMp(LogicAxioms.andIntroduction, aZero, bZero)
             }
         }
     }
@@ -306,12 +306,12 @@ object NatLibrary {
                 assume(0.n * x eq 0.n) { zeroXZero -> // 0 * x == 0
                     val step1 = infer(NatAxioms.mulDefinitionSucc(0.n, x)) // 0 * S(x) == 0 + 0 * x
                     val step2 = infer(addZeroLeft(0.n * x)) // 0 + 0 * x == 0 * x
-                    val step3 = applyByMpChain(EqualityLibrary.transitivity, step1, step2) // 0 * S(x) == 0 * x
-                    applyByMpChain(EqualityLibrary.transitivity, step3, zeroXZero)
+                    val step3 = applyMp(EqualityLibrary.transitivity, step1, step2) // 0 * S(x) == 0 * x
+                    applyMp(EqualityLibrary.transitivity, step3, zeroXZero)
                 }
             }
-            val forallY = applyByMpChain(NatAxioms.induction, base, step)
-            applyByMpChain(FirstOrderAxioms.forallInstantiation(auto(), a), forallY)
+            val forallY = applyMp(NatAxioms.induction, base, step)
+            applyMp(FirstOrderAxioms.forallInstantiation(auto(), a), forallY)
         }
     }
 
@@ -330,8 +330,8 @@ object NatLibrary {
                 val step1 = infer(NatAxioms.mulDefinitionZero(succ(a))) // S(a) * 0 == 0
                 val step2 = infer(NatAxioms.mulDefinitionZero(a)) // a * 0 == 0
                 val step3 = infer(addZeroLeft(a * 0.n)) // 0 + a * 0 == a * 0
-                val step4 = applyByMpChain(EqualityLibrary.transitivity, step3, step2).flipEq() // 0 == 0 + a * 0
-                applyByMpChain(EqualityLibrary.transitivity, step1, step4) // S(a) * 0 == 0 + a * 0
+                val step4 = applyMp(EqualityLibrary.transitivity, step3, step2).flipEq() // 0 == 0 + a * 0
+                applyMp(EqualityLibrary.transitivity, step1, step4) // S(a) * 0 == 0 + a * 0
             }
 
             val step = forAllByGeneralization("y", Nat) { y ->
@@ -339,7 +339,7 @@ object NatLibrary {
                     val step1 = infer(NatAxioms.mulDefinitionSucc(succ(a), y)) // S(a) * S(y) == S(a) + S(a) * y
                     val step2 = step1.replace(prevStep) // S(a) * S(y) == S(a) + (y + a * y)
                     val step3 = infer(NatTheory.addAssociative(succ(a), y, a * y)).flipEq() // S(a) + (y + a * y) == (S(a) + y) + a * y
-                    val step4 = applyByMpChain(EqualityLibrary.transitivity, step2, step3) // S(a) * S(y) == (S(a) + y) + a * y
+                    val step4 = applyMp(EqualityLibrary.transitivity, step2, step3) // S(a) * S(y) == (S(a) + y) + a * y
                     val step5 = infer(addSuccShift(a, y)) // S(a) + y == a + S(y)
                     val step6 = step4.replace(step5) // S(a) * S(y) == (a + S(y)) + a * y
                     val step7 = infer(addCommutative(a, succ(y))) // a + S(y) == S(y) + a
@@ -351,8 +351,8 @@ object NatLibrary {
                 }
             }
 
-            val forallX = applyByMpChain(NatAxioms.induction, base, step)
-            applyByMpChain(FirstOrderAxioms.forallInstantiation(auto(), b), forallX)
+            val forallX = applyMp(NatAxioms.induction, base, step)
+            applyMp(FirstOrderAxioms.forallInstantiation(auto(), b), forallX)
         }
     }
 }

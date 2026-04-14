@@ -14,7 +14,7 @@ import dev.moklev.mathproof.kernel.ProofStep
 import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.logic.LogicAxioms
 import dev.moklev.mathproof.logic.LogicLibrary
-import dev.moklev.mathproof.logic.applyByMpChain
+import dev.moklev.mathproof.logic.applyMp
 import dev.moklev.mathproof.logic.assume
 import dev.moklev.mathproof.logic.and
 import dev.moklev.mathproof.logic.implies
@@ -91,7 +91,7 @@ class FirstOrderModuleTest {
                 conclusion(predicate(witness))
                 proof {
                     val existential = given(somePredicate)
-                    applyByMpChain(FirstOrderAxioms.forallInstantiation(predicate, witness), existential)
+                    applyMp(FirstOrderAxioms.forallInstantiation(predicate, witness), existential)
                 }
             }
         }
@@ -110,7 +110,7 @@ class FirstOrderModuleTest {
             conclusion(guard implies FirstOrderFunctions.ForAll(predicate))
             proof {
                 val universal = given(premiseAll)
-                applyByMpChain(FirstOrderAxioms.forallDistribution(guard, predicate), universal)
+                applyMp(FirstOrderAxioms.forallDistribution(guard, predicate), universal)
             }
         }
 
@@ -141,7 +141,7 @@ class FirstOrderModuleTest {
             proof {
                 val universalImplication = given(implicationPremise)
                 val existential = given(existencePremise)
-                val implicationToResult = applyByMpChain(
+                val implicationToResult = applyMp(
                     FirstOrderAxioms.existsElimination(predicate, result),
                     universalImplication,
                 )
@@ -178,7 +178,7 @@ class FirstOrderModuleTest {
                 val universalImplication = given(implicationPremise)
                 val existential = given(existencePremise)
                 eliminateExists(existential) { x, witness ->
-                    val implicationAtWitness = applyByMpChain(
+                    val implicationAtWitness = applyMp(
                         FirstOrderAxioms.forallInstantiation(implicationPredicate, x),
                         given(universalImplication),
                     )
@@ -202,7 +202,7 @@ class FirstOrderModuleTest {
             proof {
                 val universalImplication = given(implicationPremise)
                 eliminateExists(FirstOrderFunctions.Exists(predicate)) { x, witness ->
-                    val implicationAtWitness = applyByMpChain(
+                    val implicationAtWitness = applyMp(
                         FirstOrderAxioms.forallInstantiation(implicationPredicate, x),
                         given(universalImplication),
                     )
@@ -245,8 +245,8 @@ class FirstOrderModuleTest {
             conclusion(FirstOrderFunctions.Exists(predicate))
             proof {
                 val universal = given(universalPremise)
-                val witnessFact = applyByMpChain(FirstOrderAxioms.forallInstantiation(predicate, witness), universal)
-                applyByMpChain(FirstOrderAxioms.existsIntroduction(predicate, witness), witnessFact)
+                val witnessFact = applyMp(FirstOrderAxioms.forallInstantiation(predicate, witness), universal)
+                applyMp(FirstOrderAxioms.existsIntroduction(predicate, witness), witnessFact)
             }
         }
 
@@ -265,7 +265,7 @@ class FirstOrderModuleTest {
             proof {
                 val universalImplication = given(implicationPremise)
                 val guardFact = given(guardPremise)
-                val implicationToUniversal = applyByMpChain(FirstOrderAxioms.forallDistribution(guard, predicate), universalImplication)
+                val implicationToUniversal = applyMp(FirstOrderAxioms.forallDistribution(guard, predicate), universalImplication)
                 infer(LogicAxioms.modusPonens(guard, FirstOrderFunctions.ForAll(predicate)), guardFact, implicationToUniversal)
             }
         }
@@ -287,7 +287,7 @@ class FirstOrderModuleTest {
                 proof {
                     val universalImplication = given(implicationPremise)
                     val existential = given(existencePremise)
-                    val implicationToResult = applyByMpChain(
+                    val implicationToResult = applyMp(
                         FirstOrderAxioms.existsElimination(p, result),
                         universalImplication,
                     )

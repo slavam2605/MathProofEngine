@@ -2,11 +2,9 @@ package dev.moklev.mathproof.fol.dsl
 
 import dev.moklev.mathproof.dsl.Occurences
 import dev.moklev.mathproof.fol.FirstOrderAxioms
-import dev.moklev.mathproof.kernel.Fact
-import dev.moklev.mathproof.kernel.ProofBuilder
-import dev.moklev.mathproof.logic.AssumptionScope
-import dev.moklev.mathproof.logic.ScopedFact
-import dev.moklev.mathproof.logic.applyByMpChain
+import dev.moklev.mathproof.kernel.DerivationFact
+import dev.moklev.mathproof.kernel.DerivationScope
+import dev.moklev.mathproof.logic.applyMp
 import dev.moklev.mathproof.model.Apply
 import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.Expr
@@ -16,83 +14,42 @@ import dev.moklev.mathproof.model.Sort
 import dev.moklev.mathproof.model.abstract
 import dev.moklev.mathproof.model.freshFree
 
-context(proofBuilder: ProofBuilder)
-fun Fact.introduceExists(
+context(scope: DerivationScope)
+fun DerivationFact.introduceExists(
     witness: Expr,
     at: Occurences = Occurences.All,
     variableName: String = "x",
-): Fact {
+): DerivationFact {
     val introduction = buildExistsIntroductionPlan(
         sourceClaim = claim,
         witness = witness,
         variableName = variableName,
         explicitSort = null,
         at = at,
-        apiName = "Fact.introduceExists",
+        apiName = "DerivationFact.introduceExists",
     )
-    return proofBuilder.applyByMpChain(
+    return scope.applyMp(
         FirstOrderAxioms.existsIntroduction(introduction.predicate, witness),
         this,
     )
 }
 
-context(proofBuilder: ProofBuilder)
-fun Fact.introduceExists(
+context(scope: DerivationScope)
+fun DerivationFact.introduceExists(
     witness: Expr,
     at: Occurences = Occurences.All,
     variableName: String,
     sort: Sort,
-): Fact {
+): DerivationFact {
     val introduction = buildExistsIntroductionPlan(
         sourceClaim = claim,
         witness = witness,
         variableName = variableName,
         explicitSort = sort,
         at = at,
-        apiName = "Fact.introduceExists",
+        apiName = "DerivationFact.introduceExists",
     )
-    return proofBuilder.applyByMpChain(
-        FirstOrderAxioms.existsIntroduction(introduction.predicate, witness),
-        this,
-    )
-}
-
-context(scope: AssumptionScope)
-fun ScopedFact.introduceExists(
-    witness: Expr,
-    at: Occurences = Occurences.All,
-    variableName: String = "x",
-): ScopedFact {
-    val introduction = buildExistsIntroductionPlan(
-        sourceClaim = claim,
-        witness = witness,
-        variableName = variableName,
-        explicitSort = null,
-        at = at,
-        apiName = "ScopedFact.introduceExists",
-    )
-    return scope.applyByMpChain(
-        FirstOrderAxioms.existsIntroduction(introduction.predicate, witness),
-        this,
-    )
-}
-
-context(scope: AssumptionScope)
-fun ScopedFact.introduceExists(
-    witness: Expr,
-    at: Occurences = Occurences.All,
-    variableName: String,
-    sort: Sort,
-): ScopedFact {
-    val introduction = buildExistsIntroductionPlan(
-        sourceClaim = claim,
-        witness = witness,
-        variableName = variableName,
-        explicitSort = sort,
-        at = at,
-        apiName = "ScopedFact.introduceExists",
-    )
-    return scope.applyByMpChain(
+    return scope.applyMp(
         FirstOrderAxioms.existsIntroduction(introduction.predicate, witness),
         this,
     )

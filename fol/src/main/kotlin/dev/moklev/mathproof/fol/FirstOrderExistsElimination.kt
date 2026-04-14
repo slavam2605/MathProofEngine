@@ -1,13 +1,11 @@
 package dev.moklev.mathproof.fol
 
-import dev.moklev.mathproof.kernel.Fact
-import dev.moklev.mathproof.kernel.ProofBuilder
-import dev.moklev.mathproof.logic.AssumptionScope
+import dev.moklev.mathproof.kernel.DerivationFact
+import dev.moklev.mathproof.kernel.DerivationScope
 import dev.moklev.mathproof.logic.LogicAxioms
 import dev.moklev.mathproof.logic.LogicFunctions
-import dev.moklev.mathproof.logic.ScopedFact
-import dev.moklev.mathproof.logic.applyByMpChain
-import dev.moklev.mathproof.logic.assume
+import dev.moklev.mathproof.logic.applyMp
+import dev.moklev.mathproof.logic.assumeInLogicScope
 import dev.moklev.mathproof.model.Apply
 import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.CoreSorts
@@ -17,80 +15,68 @@ import dev.moklev.mathproof.model.Free
 import dev.moklev.mathproof.model.Lambda
 import dev.moklev.mathproof.model.Sort
 
-fun ProofBuilder.eliminateExists(
+fun DerivationScope.eliminateExists(
     existsExpr: Expr,
     variableName: String = "x",
-    proveAt: AssumptionScope.(Free, ScopedFact) -> Unit,
-): Fact {
-    val predicate = existsExpr.requireExistsPredicate("eliminateExists")
-    val witness = arbitrary(variableName, predicate.witnessSort)
-    val witnessToResult = assume(predicate.expr(witness)) { witnessFact ->
-        proveAt(witness, witnessFact)
-    }
-    val result = requireWitnessIndependentResult(
-        witness = witness,
-        implicationClaim = witnessToResult.claim,
-    )
-    val generalizedImplication = generalizeForAll(witness, witnessToResult)
-    return applyByMpChain(
-        FirstOrderAxioms.existsElimination(predicate.expr, result),
-        generalizedImplication,
-    )
-}
-
-fun ProofBuilder.eliminateExists(
-    existsFact: Fact,
-    variableName: String = "x",
-    proveAt: AssumptionScope.(Free, ScopedFact) -> Unit,
-): Fact {
-    val implication = eliminateExists(
-        existsExpr = existsFact.claim,
+    proveAt: DerivationScope.(Free, DerivationFact) -> Unit,
+): DerivationFact =
+    eliminateExistsFromExpression(
+        existsExpr = existsExpr,
         variableName = variableName,
         proveAt = proveAt,
+        assumeAt = { assumption, block -> assumeInLogicScope(assumption, block) },
     )
-    return infer(
-        LogicAxioms.modusPonens(existsFact.claim, implication.claim.requireImplicationConsequent("eliminateExists")),
-        existsFact,
-        implication,
-    )
-}
 
-fun AssumptionScope.eliminateExists(
-    existsExpr: Expr,
+fun DerivationScope.eliminateExists(
+    existsFact: DerivationFact,
     variableName: String = "x",
-    proveAt: AssumptionScope.(Free, ScopedFact) -> Unit,
-): ScopedFact {
+    proveAt: DerivationScope.(Free, DerivationFact) -> Unit,
+): DerivationFact =
+    eliminateExistsFromFact(
+        existsFact = existsFact,
+        variableName = variableName,
+        proveAt = proveAt,
+        assumeAt = { assumption, block -> assumeInLogicScope(assumption, block) },
+    )
+
+private fun DerivationScope.eliminateExistsFromExpression(
+    existsExpr: Expr,
+    variableName: String,
+    proveAt: DerivationScope.(Free, DerivationFact) -> Unit,
+    assumeAt: DerivationScope.(Expr, DerivationScope.(DerivationFact) -> Unit) -> DerivationFact,
+): DerivationFact {
     val predicate = existsExpr.requireExistsPredicate("eliminateExists")
     val witness = arbitrary(variableName, predicate.witnessSort)
-    val witnessToResult = assume(predicate.expr(witness)) { witnessFact ->
-        proveAt(witness, witnessFact)
+    val witnessToResult = assumeAt(predicate.expr(witness)) witnessScope@{ witnessFact ->
+        proveAt.invoke(this@witnessScope, witness, witnessFact)
     }
     val result = requireWitnessIndependentResult(
         witness = witness,
         implicationClaim = witnessToResult.claim,
     )
     val generalizedImplication = generalizeForAll(witness, witnessToResult)
-    return applyByMpChain(
+    return applyMp(
         FirstOrderAxioms.existsElimination(predicate.expr, result),
         generalizedImplication,
     )
 }
 
-fun AssumptionScope.eliminateExists(
-    existsFact: ScopedFact,
+private fun DerivationScope.eliminateExistsFromFact(
+    existsFact: DerivationFact,
     variableName: String,
-    proveAt: AssumptionScope.(Free, ScopedFact) -> Unit,
-): ScopedFact {
+    proveAt: DerivationScope.(Free, DerivationFact) -> Unit,
+    assumeAt: DerivationScope.(Expr, DerivationScope.(DerivationFact) -> Unit) -> DerivationFact,
+): DerivationFact {
     val existsInScope = given(existsFact)
-    val implication = eliminateExists(
+    val implication = eliminateExistsFromExpression(
         existsExpr = existsInScope.claim,
         variableName = variableName,
         proveAt = proveAt,
+        assumeAt = assumeAt,
     )
     return infer(
         LogicAxioms.modusPonens(existsInScope.claim, implication.claim.requireImplicationConsequent("eliminateExists")),
-        existsInScope,
-        implication,
+        premises = listOf(existsInScope, implication),
     )
 }
 

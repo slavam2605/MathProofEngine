@@ -3,11 +3,9 @@ package dev.moklev.mathproof.equality.dsl
 import dev.moklev.mathproof.dsl.Occurences
 import dev.moklev.mathproof.equality.EqualityAxioms
 import dev.moklev.mathproof.equality.EqualityFunctions
-import dev.moklev.mathproof.kernel.Fact
-import dev.moklev.mathproof.kernel.ProofBuilder
-import dev.moklev.mathproof.logic.AssumptionScope
-import dev.moklev.mathproof.logic.ScopedFact
-import dev.moklev.mathproof.logic.applyByMpChain
+import dev.moklev.mathproof.kernel.DerivationFact
+import dev.moklev.mathproof.kernel.DerivationScope
+import dev.moklev.mathproof.logic.applyMp
 import dev.moklev.mathproof.model.Apply
 import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.Expr
@@ -16,50 +14,23 @@ import dev.moklev.mathproof.model.Lambda
 import dev.moklev.mathproof.model.abstract
 import dev.moklev.mathproof.model.freshFree
 
-context(proofBuilder: ProofBuilder)
-fun Fact.replace(
-    using: Fact,
+context(scope: DerivationScope)
+fun DerivationFact.replace(
+    using: DerivationFact,
     at: Occurences = Occurences.All,
-): Fact {
+): DerivationFact {
     val rewrite = buildRewritePlan(
         sourceClaim = claim,
         equalityClaim = using.claim,
         at = at,
-        apiName = "Fact.replace",
+        apiName = "replace",
     )
-    return proofBuilder.applyByMpChain(
+    return scope.applyMp(
         EqualityAxioms.substitution(rewrite.predicate, rewrite.from, rewrite.to),
         using,
         this,
     )
 }
-
-context(scope: AssumptionScope)
-fun ScopedFact.replace(
-    using: ScopedFact,
-    at: Occurences = Occurences.All,
-): ScopedFact {
-    val rewrite = buildRewritePlan(
-        sourceClaim = claim,
-        equalityClaim = using.claim,
-        at = at,
-        apiName = "ScopedFact.replace",
-    )
-    return scope.applyByMpChain(
-        EqualityAxioms.substitution(rewrite.predicate, rewrite.from, rewrite.to),
-        using,
-        this,
-    )
-}
-
-context(scope: AssumptionScope)
-fun ScopedFact.replace(
-    using: Fact,
-    at: Occurences = Occurences.All,
-): ScopedFact = replace(
-    using = scope.given(using),
-    at = at,
-)
 
 private data class RewritePlan(
     val from: Expr,

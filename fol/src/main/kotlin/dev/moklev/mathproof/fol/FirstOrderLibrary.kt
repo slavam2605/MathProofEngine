@@ -9,7 +9,7 @@ import dev.moklev.mathproof.logic.LogicLibrary
 import dev.moklev.mathproof.logic.LogicLibrary.contraposition
 import dev.moklev.mathproof.logic.LogicLibrary.doubleNegationElimination
 import dev.moklev.mathproof.logic.LogicLibrary.hypotheticalSyllogism
-import dev.moklev.mathproof.logic.applyByMpChain
+import dev.moklev.mathproof.logic.applyMp
 import dev.moklev.mathproof.logic.assume
 import dev.moklev.mathproof.logic.implies
 import dev.moklev.mathproof.logic.not
@@ -30,10 +30,10 @@ object FirstOrderLibrary {
             assume(!exists("x", s) { x -> !p(x) }) { notExists ->
                 forAllByGeneralization("a", s) { a ->
                     contradiction(!p(a)) { notPa ->
-                        val step1 = applyByMpChain(FirstOrderAxioms.existsIntroduction(
+                        val step1 = applyMp(FirstOrderAxioms.existsIntroduction(
                             lambda("x", s) { x -> !p(x) }, a
                         ), notPa)
-                        applyByMpChain(LogicLibrary.exFalso(step1.claim, p(a)), notExists, step1)
+                        applyMp(LogicLibrary.exFalso(step1.claim, p(a)), notExists, step1)
                     }
                 }
             }
@@ -59,7 +59,7 @@ object FirstOrderLibrary {
             val contr = infer(contraposition(!ex, fa))
             val nFnnE = infer(modusPonens(notExists.claim, !fa implies !!ex), notExists, contr)
             val doubleN = infer(doubleNegationElimination(ex))
-            applyByMpChain(hypotheticalSyllogism(!fa, !!ex, ex), nFnnE, doubleN)
+            applyMp(hypotheticalSyllogism(!fa, !!ex, ex), nFnnE, doubleN)
         }
     }
 }

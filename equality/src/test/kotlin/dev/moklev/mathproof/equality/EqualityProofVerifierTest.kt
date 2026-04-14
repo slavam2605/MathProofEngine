@@ -6,7 +6,7 @@ import dev.moklev.mathproof.core.statement
 import dev.moklev.mathproof.kernel.ProofVerifier
 import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.kernel.auto
-import dev.moklev.mathproof.logic.applyByMpChain
+import dev.moklev.mathproof.logic.applyMp
 import dev.moklev.mathproof.model.NamedSort
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -41,7 +41,7 @@ class EqualityProofVerifierTest {
             conclusion(b eq a)
             proof {
                 val givenAb = given(abPremise)
-                applyByMpChain(EqualityLibrary.symmetry, givenAb)
+                applyMp(EqualityLibrary.symmetry, givenAb)
             }
         }
 
@@ -60,7 +60,7 @@ class EqualityProofVerifierTest {
             conclusion(f(a) eq f(b))
             proof {
                 val givenAb = given(abPremise)
-                applyByMpChain(
+                applyMp(
                     EqualityLibrary.congruence(f, auto(), auto()),
                     givenAb,
                 )
@@ -82,7 +82,7 @@ class EqualityProofVerifierTest {
                 conclusion(b eq a)
                 proof {
                     val givenAb = given(abPremise)
-                    applyByMpChain(
+                    applyMp(
                         EqualityLibrary.symmetry(b, auto()),
                         givenAb,
                     )

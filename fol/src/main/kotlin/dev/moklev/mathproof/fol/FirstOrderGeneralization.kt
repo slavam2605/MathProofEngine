@@ -2,16 +2,15 @@ package dev.moklev.mathproof.fol
 
 import dev.moklev.mathproof.kernel.ExternalJustificationStepContext
 import dev.moklev.mathproof.kernel.ExternalJustificationValidator
-import dev.moklev.mathproof.kernel.Fact
+import dev.moklev.mathproof.kernel.DerivationFact
+import dev.moklev.mathproof.kernel.DerivationScope
 import dev.moklev.mathproof.kernel.Justification
-import dev.moklev.mathproof.kernel.ProofBuilder
-import dev.moklev.mathproof.logic.AssumptionScope
 import dev.moklev.mathproof.logic.LogicAxioms.modusPonens
 import dev.moklev.mathproof.logic.ScopedAssumptionDependentCompilationContext
-import dev.moklev.mathproof.logic.ScopedFact
 import dev.moklev.mathproof.logic.ScopedJustificationSupport
 import dev.moklev.mathproof.logic.implies
 import dev.moklev.mathproof.logic.registerScopedJustificationSupport
+import dev.moklev.mathproof.logic.validateGeneralizationVariableInLogicScope
 import dev.moklev.mathproof.model.Apply
 import dev.moklev.mathproof.model.Bound
 import dev.moklev.mathproof.model.Expr
@@ -87,10 +86,10 @@ private object UniversalGeneralizationScopedSupport : ScopedJustificationSupport
         return justification.copy(sourceLabel = premiseLabels.single())
     }
 
-    override fun <F> compileAssumptionDependent(
-        context: ScopedAssumptionDependentCompilationContext<F>,
+    override fun compileAssumptionDependent(
+        context: ScopedAssumptionDependentCompilationContext,
         justification: UniversalGeneralization,
-    ): F {
+    ): DerivationFact {
         require(context.premiseStepIds.size == 1) {
             "Scoped universal generalization expected exactly one premise step, but got ${context.premiseStepIds.size}."
         }
@@ -143,107 +142,39 @@ private fun ensureScopedUniversalGeneralizationSupportRegistered() {
     check(scopedUniversalGeneralizationSupportRegistered)
 }
 
-fun ProofBuilder.generalizeForAll(
-    label: String,
+fun DerivationScope.generalizeForAll(
     variable: Free,
-    source: Fact,
-): Fact {
+    source: DerivationFact,
+): DerivationFact {
     ensureScopedUniversalGeneralizationSupportRegistered()
-    val generalizedClaim = forAllGeneralizedClaim(variable, source)
-    return justify(
-        label = label,
-        claim = generalizedClaim,
-        justification = UniversalGeneralization(
-            sourceLabel = source.label,
-            variable = variable,
-        ),
-        source,
-    )
-}
-
-fun ProofBuilder.generalizeForAll(
-    variable: Free,
-    source: Fact,
-): Fact = justify(
-    claim = run {
-        ensureScopedUniversalGeneralizationSupportRegistered()
-        forAllGeneralizedClaim(variable, source)
-    },
-    justification = UniversalGeneralization(
-        sourceLabel = source.label,
-        variable = variable,
-    ),
-    source,
-)
-
-fun AssumptionScope.generalizeForAll(
-    variable: Free,
-    source: ScopedFact,
-): ScopedFact {
-    ensureScopedUniversalGeneralizationSupportRegistered()
-    require(!hasFreeSymbolInStatementPremises(variable.symbol)) {
-        "Universal generalization over '${variable.displayName}' is invalid because this variable appears in a statement premise."
-    }
-    require(!hasFreeSymbolInOpenAssumptions(variable.symbol)) {
-        "Universal generalization over '${variable.displayName}' is invalid because this variable appears in an open assumption."
-    }
+    validateGeneralizationVariableInLogicScope(variable)
 
     val sourceInScope = given(source)
+    val sourceLabel = factLabel(sourceInScope) ?: SCOPED_GENERALIZATION_SOURCE_PLACEHOLDER
     return justify(
         claim = forAllGeneralizedClaim(variable, sourceInScope.claim),
         justification = UniversalGeneralization(
-            sourceLabel = SCOPED_GENERALIZATION_SOURCE_PLACEHOLDER,
+            sourceLabel = sourceLabel,
             variable = variable,
         ),
-        sourceInScope,
+        premises = listOf(sourceInScope),
     )
 }
 
 /**
  * Declares a proof-local arbitrary variable and universally generalizes the last proof step emitted by [proveAt].
  */
-fun ProofBuilder.forAllByGeneralization(
+fun DerivationScope.forAllByGeneralization(
     variableName: String,
     sort: Sort,
     proveAt: (Free) -> Unit,
-): Fact {
+): DerivationFact {
     ensureScopedUniversalGeneralizationSupportRegistered()
     val variable = arbitrary(variableName, sort)
     val source = withLastFactFrom("forAllByGeneralization") {
         proveAt(variable)
     }
     return generalizeForAll(variable, source)
-}
-
-fun ProofBuilder.forAllByGeneralization(
-    label: String,
-    variableName: String,
-    sort: Sort,
-    proveAt: (Free) -> Unit,
-): Fact {
-    ensureScopedUniversalGeneralizationSupportRegistered()
-    val variable = arbitrary(variableName, sort)
-    val source = withLastFactFrom("forAllByGeneralization") {
-        proveAt(variable)
-    }
-    return generalizeForAll(label, variable, source)
-}
-
-fun AssumptionScope.forAllByGeneralization(
-    variableName: String,
-    sort: Sort,
-    proveAt: (Free) -> Unit,
-): ScopedFact {
-    ensureScopedUniversalGeneralizationSupportRegistered()
-    val variable = arbitrary(variableName, sort)
-    val source = withLastFactFrom("forAllByGeneralization") {
-        proveAt(variable)
-    }
-    return generalizeForAll(variable, source)
-}
-
-private fun forAllGeneralizedClaim(variable: Free, source: Fact): Expr {
-    return forAllGeneralizedClaim(variable, source.claim)
 }
 
 private fun forAllGeneralizedClaim(variable: Free, sourceClaim: Expr): Expr {

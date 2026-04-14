@@ -143,7 +143,7 @@ class LogicProofVerifierTest {
                 proof {
                     val givenNotP = given(notPPremise)
                     val givenP = given(pPremise)
-                    applyByMpChain(LogicLibrary.exFalso, givenNotP, givenP)
+                    applyMp(LogicLibrary.exFalso, givenNotP, givenP)
                 }
             }
         }
