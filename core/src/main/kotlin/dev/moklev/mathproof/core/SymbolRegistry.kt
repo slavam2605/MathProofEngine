@@ -1,6 +1,9 @@
 package dev.moklev.mathproof.core
 
 import dev.moklev.mathproof.model.Free
+import dev.moklev.mathproof.model.ExprNotation
+import dev.moklev.mathproof.model.ExprNotationRegistry
+import dev.moklev.mathproof.model.Lambda
 import dev.moklev.mathproof.model.Sort
 
 class SymbolRegistry private constructor() {
@@ -90,4 +93,31 @@ class SymbolNamespace internal constructor(
         sort = functionSort(*argumentSorts, returns = returns),
         displayName = displayName,
     )
+
+    fun function(
+        name: String,
+        vararg argumentSorts: Sort,
+        returns: Sort,
+        notation: ExprNotation,
+    ): Free {
+        val declared = function(
+            name = name,
+            *argumentSorts,
+            returns = returns,
+            displayName = notation.symbol,
+        )
+        ExprNotationRegistry.register { head, arguments ->
+            if (head != declared) {
+                return@register null
+            }
+            when (notation) {
+                is ExprNotation.Infix -> if (arguments.size == 2) notation else null
+                is ExprNotation.Prefix -> if (arguments.size == 1) notation else null
+                is ExprNotation.Binder -> {
+                    if (arguments.size == 1 && arguments.singleOrNull() is Lambda) notation else null
+                }
+            }
+        }
+        return declared
+    }
 }

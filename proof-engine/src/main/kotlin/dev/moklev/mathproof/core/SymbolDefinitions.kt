@@ -2,6 +2,7 @@ package dev.moklev.mathproof.core
 
 import dev.moklev.mathproof.kernel.StatementBuilder
 import dev.moklev.mathproof.kernel.StatementDefinition
+import dev.moklev.mathproof.model.ExprNotation
 import dev.moklev.mathproof.model.Free
 import dev.moklev.mathproof.model.Sort
 
@@ -55,6 +56,13 @@ fun SymbolNamespace.defineSymbol(
     block: SymbolDefinitionBuilder.(self: Free) -> Unit,
 ): SymbolDefinition {
     val symbol = free(name = name, sort = sort, displayName = displayName)
+    return defineWithSymbol(symbol, block)
+}
+
+private fun defineWithSymbol(
+    symbol: Free,
+    block: SymbolDefinitionBuilder.(self: Free) -> Unit,
+): SymbolDefinition {
     val builder = SymbolDefinitionBuilder(symbol)
     builder.block(symbol)
     return builder.build()
@@ -84,3 +92,19 @@ fun SymbolNamespace.defineFunction(
     displayName = displayName,
     block = block,
 )
+
+fun SymbolNamespace.defineFunction(
+    name: String,
+    vararg argumentSorts: Sort,
+    returns: Sort,
+    notation: ExprNotation,
+    block: SymbolDefinitionBuilder.(self: Free) -> Unit,
+): SymbolDefinition {
+    val symbol = function(
+        name = name,
+        *argumentSorts,
+        returns = returns,
+        notation = notation,
+    )
+    return defineWithSymbol(symbol, block)
+}

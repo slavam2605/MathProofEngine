@@ -5,6 +5,7 @@ import dev.moklev.mathproof.model.Associativity
 import dev.moklev.mathproof.model.CoreSorts
 import dev.moklev.mathproof.model.Expr
 import dev.moklev.mathproof.model.ExprNotation
+import dev.moklev.mathproof.model.ExprPrecedence
 import dev.moklev.mathproof.model.ExprNotationRegistry
 
 object LogicFunctions {
@@ -18,10 +19,14 @@ object LogicFunctions {
     init {
         ExprNotationRegistry.register { head, arguments ->
             when {
-                head == Not && arguments.size == 1 -> ExprNotation.Prefix("!", precedence = 85)
-                head == And && arguments.size == 2 -> ExprNotation.Infix("and", precedence = 50)
-                head == Or && arguments.size == 2 -> ExprNotation.Infix("or", precedence = 40)
-                head == Implies && arguments.size == 2 -> ExprNotation.Infix("->", precedence = 30, associativity = Associativity.RIGHT)
+                head == Not && arguments.size == 1 -> ExprNotation.Prefix("!", precedence = ExprPrecedence.PREFIX)
+                head == And && arguments.size == 2 -> ExprNotation.Infix("and", precedence = ExprPrecedence.CONJUNCTION)
+                head == Or && arguments.size == 2 -> ExprNotation.Infix("or", precedence = ExprPrecedence.DISJUNCTION)
+                head == Implies && arguments.size == 2 -> ExprNotation.Infix(
+                    "->",
+                    precedence = ExprPrecedence.IMPLICATION,
+                    associativity = Associativity.RIGHT,
+                )
                 else -> null
             }
         }

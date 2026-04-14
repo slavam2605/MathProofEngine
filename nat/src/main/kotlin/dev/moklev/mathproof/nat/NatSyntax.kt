@@ -5,6 +5,7 @@ import dev.moklev.mathproof.model.Associativity
 import dev.moklev.mathproof.model.CoreSorts
 import dev.moklev.mathproof.model.Expr
 import dev.moklev.mathproof.model.ExprNotation
+import dev.moklev.mathproof.model.ExprPrecedence
 import dev.moklev.mathproof.model.ExprNotationRegistry
 import dev.moklev.mathproof.model.NamedSort
 import dev.moklev.mathproof.model.Sort
@@ -25,10 +26,22 @@ object NatFunctions {
     init {
         ExprNotationRegistry.register { head, arguments ->
             when {
-                head == Succ && arguments.size == 1 -> ExprNotation.Prefix("S", precedence = 85)
-                head == Add && arguments.size == 2 -> ExprNotation.Infix("+", precedence = 60, associativity = Associativity.LEFT)
-                head == Mul && arguments.size == 2 -> ExprNotation.Infix("*", precedence = 70, associativity = Associativity.LEFT)
-                head == Leq && arguments.size == 2 -> ExprNotation.Infix("<=", precedence = 45, associativity = Associativity.LEFT)
+                head == Succ && arguments.size == 1 -> ExprNotation.Prefix("S", precedence = ExprPrecedence.PREFIX)
+                head == Add && arguments.size == 2 -> ExprNotation.Infix(
+                    "+",
+                    precedence = ExprPrecedence.ADDITIVE,
+                    associativity = Associativity.LEFT,
+                )
+                head == Mul && arguments.size == 2 -> ExprNotation.Infix(
+                    "*",
+                    precedence = ExprPrecedence.MULTIPLICATIVE,
+                    associativity = Associativity.LEFT,
+                )
+                head == Leq && arguments.size == 2 -> ExprNotation.Infix(
+                    "<=",
+                    precedence = ExprPrecedence.COMPARISON,
+                    associativity = Associativity.LEFT,
+                )
                 else -> null
             }
         }

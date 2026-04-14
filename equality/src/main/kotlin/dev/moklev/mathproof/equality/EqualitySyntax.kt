@@ -6,6 +6,7 @@ import dev.moklev.mathproof.model.Associativity
 import dev.moklev.mathproof.model.CoreSorts
 import dev.moklev.mathproof.model.Expr
 import dev.moklev.mathproof.model.ExprNotation
+import dev.moklev.mathproof.model.ExprPrecedence
 import dev.moklev.mathproof.model.ExprNotationRegistry
 
 object EqualityFunctions {
@@ -17,7 +18,11 @@ object EqualityFunctions {
     init {
         ExprNotationRegistry.register { head, arguments ->
             when {
-                head == Eq && arguments.size == 2 -> ExprNotation.Infix("=", precedence = 60, associativity = Associativity.LEFT)
+                head == Eq && arguments.size == 2 -> ExprNotation.Infix(
+                    "=",
+                    precedence = ExprPrecedence.EQUALITY,
+                    associativity = Associativity.LEFT,
+                )
                 else -> null
             }
         }

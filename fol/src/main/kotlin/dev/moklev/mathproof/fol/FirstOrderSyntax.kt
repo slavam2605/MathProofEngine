@@ -7,6 +7,7 @@ import dev.moklev.mathproof.core.sortVariable
 import dev.moklev.mathproof.model.CoreSorts
 import dev.moklev.mathproof.model.Expr
 import dev.moklev.mathproof.model.ExprNotation
+import dev.moklev.mathproof.model.ExprPrecedence
 import dev.moklev.mathproof.model.ExprNotationRegistry
 import dev.moklev.mathproof.model.Lambda
 import dev.moklev.mathproof.model.Sort
@@ -41,7 +42,7 @@ object FirstOrderFunctions {
                         else -> error("Unexpected head: $head")
                     }
 
-                    ExprNotation.Binder(symbol, precedence = 85)
+                    ExprNotation.Binder(symbol, precedence = ExprPrecedence.BINDER)
                 }
                 else -> null
             }

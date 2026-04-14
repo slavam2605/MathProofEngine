@@ -86,8 +86,12 @@ class NatModuleTest {
     @Test
     fun rendersNatExpressionsWithRegisteredNotation() {
         val n = constant("n", NatSorts.Nat)
+        val a = constant("a", NatSorts.Nat)
+        val b = constant("b", NatSorts.Nat)
+        val c = constant("c", NatSorts.Nat)
 
         assertEquals("n + S0", NatFunctions.Add(n, succ(NatFunctions.Zero)).toString())
+        assertEquals("a = b + c", (a eq (b + c)).toString())
     }
 
     @Test

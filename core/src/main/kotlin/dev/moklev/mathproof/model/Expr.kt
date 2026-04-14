@@ -149,7 +149,7 @@ private fun Lambda.renderLambda(
     parentPrecedence: Int,
     boundNames: List<String>,
 ): String {
-    val currentPrecedence = 10
+    val currentPrecedence = ExprPrecedence.LAMBDA
     val parameterName = freshRenderedName(parameterHint ?: "x", boundNames + body.freeDisplayNames())
     val rendered = "\\$parameterName. ${body.renderWithContext(currentPrecedence, boundNames + parameterName)}"
     return if (currentPrecedence < parentPrecedence) "($rendered)" else rendered
@@ -185,7 +185,7 @@ private fun Apply.renderApplication(
         }
     }
 
-    val currentPrecedence = 90
+    val currentPrecedence = ExprPrecedence.APPLICATION
     val renderedHead = when (head) {
         is Free, is Bound -> head.renderWithContext(currentPrecedence, boundNames)
         else -> "(${head.renderWithContext(0, boundNames)})"
@@ -225,7 +225,11 @@ private fun renderWithInfixNotation(
         boundNames = boundNames,
         forceWrapBinderLike = notation.associativity != Associativity.RIGHT,
     )
-    val rendered = "$left ${notation.symbol} $right"
+    val rendered = if (notation.surroundWithSpaces) {
+        "$left ${notation.symbol} $right"
+    } else {
+        "$left${notation.symbol}$right"
+    }
     return if (notation.precedence < parentPrecedence) "($rendered)" else rendered
 }
 
@@ -285,7 +289,7 @@ private fun renderAsFunctionCall(
     parentPrecedence: Int,
     boundNames: List<String>,
 ): String {
-    val currentPrecedence = 90
+    val currentPrecedence = ExprPrecedence.APPLICATION
     val renderedHead = when (head) {
         is Free, is Bound -> head.renderWithContext(currentPrecedence, boundNames)
         else -> "(${head.renderWithContext(0, boundNames)})"
