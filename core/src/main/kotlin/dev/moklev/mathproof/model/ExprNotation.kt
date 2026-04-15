@@ -50,15 +50,29 @@ fun interface ExprNotationProvider {
     fun notationFor(head: Expr, arguments: List<Expr>): ExprNotation?
 }
 
+fun interface ExprAtomProvider {
+    fun atomFor(expr: Expr): String?
+}
+
 object ExprNotationRegistry {
-    private val providers = mutableListOf<ExprNotationProvider>()
+    private val notationProviders = mutableListOf<ExprNotationProvider>()
+    private val atomProviders = mutableListOf<ExprAtomProvider>()
 
     @Synchronized
     fun register(provider: ExprNotationProvider) {
-        providers += provider
+        notationProviders += provider
+    }
+
+    @Synchronized
+    fun register(provider: ExprAtomProvider) {
+        atomProviders += provider
     }
 
     @Synchronized
     internal fun notationFor(head: Expr, arguments: List<Expr>): ExprNotation? =
-        providers.firstNotNullOfOrNull { it.notationFor(head, arguments) }
+        notationProviders.firstNotNullOfOrNull { it.notationFor(head, arguments) }
+
+    @Synchronized
+    internal fun atomFor(expr: Expr): String? =
+        atomProviders.firstNotNullOfOrNull { it.atomFor(expr) }
 }

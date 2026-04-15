@@ -138,7 +138,7 @@ private fun Expr.render(parentPrecedence: Int = 0): String =
 private fun Expr.renderWithContext(
     parentPrecedence: Int,
     boundNames: List<String>,
-): String = when (this) {
+): String = ExprNotationRegistry.atomFor(this) ?: when (this) {
     is Free -> displayName
     is Bound -> boundNames.getOrNull(boundNames.lastIndex - index) ?: "#$index"
     is Lambda -> renderLambda(parentPrecedence, boundNames)

@@ -90,7 +90,9 @@ class NatModuleTest {
         val b = constant("b", NatSorts.Nat)
         val c = constant("c", NatSorts.Nat)
 
-        assertEquals("n + S0", NatFunctions.Add(n, succ(NatFunctions.Zero)).toString())
+        assertEquals("n + 1", NatFunctions.Add(n, succ(NatFunctions.Zero)).toString())
+        assertEquals("5", 5.n.toString())
+        assertEquals("S(n + 1)", succ(n + 1.n).toString())
         assertEquals("a = b + c", (a eq (b + c)).toString())
     }
 
