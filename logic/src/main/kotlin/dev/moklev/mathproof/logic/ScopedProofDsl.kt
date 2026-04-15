@@ -154,7 +154,7 @@ class AssumptionScope internal constructor(
     }
 }
 
-fun ProofBuilder.assume(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): Fact {
+private fun ProofBuilder.assumeInRootScope(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): Fact {
     requireProposition(assume, "Assumption")
     val assumptionContext = AssumptionContext(
         parent = null,
@@ -167,9 +167,9 @@ fun ProofBuilder.assume(assume: Expr, block: AssumptionScope.(ScopedFact) -> Uni
     return assumptionContext.compileIntoProofBuilder(this, resultInsideContext.stepId)
 }
 
-fun ProofBuilder.contradiction(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): Fact {
+private fun ProofBuilder.contradictionInRootScope(assume: Expr, block: AssumptionScope.(ScopedFact) -> Unit): Fact {
     val target = requireContradictionTarget(assume)
-    val implication = this.assume(assume, block)
+    val implication = this.assumeInRootScope(assume, block)
     val expectedImplication = assume implies target
     require(sameProposition(implication.claim, expectedImplication)) {
         "contradiction(assume = $assume) expects the block to return '$target', but discharge produced '${implication.claim}'."
@@ -187,21 +187,42 @@ fun ProofBuilder.contradiction(assume: Expr, block: AssumptionScope.(ScopedFact)
  * Generic bridge for modules above `logic` that need assume-discharge without concrete
  * dependency on AssumptionScope/ScopedFact.
  */
-fun DerivationScope.assumeInLogicScope(
-    assumption: Expr,
+fun DerivationScope.assume(
+    assume: Expr,
     block: DerivationScope.(DerivationFact) -> Unit,
 ): DerivationFact =
     when (this) {
-        is ProofBuilder -> assume(assumption) { scopedFact ->
+        is ProofBuilder -> assumeInRootScope(assume) { scopedFact ->
             block(this, scopedFact)
         }
-        is AssumptionScope -> assume(assumption) { scopedFact ->
+        is AssumptionScope -> this.assume(assume) { scopedFact ->
             block(this, scopedFact)
         }
         else -> throw IllegalArgumentException(
             "This scope does not support logic assumptions: '${this::class.simpleName ?: "unknown"}'.",
         )
     }
+
+fun DerivationScope.contradiction(
+    assume: Expr,
+    block: DerivationScope.(DerivationFact) -> Unit,
+): DerivationFact =
+    when (this) {
+        is ProofBuilder -> contradictionInRootScope(assume) { scopedFact ->
+            block(this, scopedFact)
+        }
+        is AssumptionScope -> this.contradiction(assume) { scopedFact ->
+            block(this, scopedFact)
+        }
+        else -> throw IllegalArgumentException(
+            "This scope does not support logic assumptions: '${this::class.simpleName ?: "unknown"}'.",
+        )
+    }
+
+fun DerivationScope.assumeInLogicScope(
+    assume: Expr,
+    block: DerivationScope.(DerivationFact) -> Unit,
+): DerivationFact = assume(assume, block)
 
 fun DerivationScope.validateGeneralizationVariableInLogicScope(variable: Free) {
     val appearsInPremises: Boolean
