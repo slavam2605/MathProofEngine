@@ -1,7 +1,7 @@
 package dev.moklev.mathproof.algebra.theories
 
 import dev.moklev.mathproof.core.functionSort
-import dev.moklev.mathproof.core.statement
+import dev.moklev.mathproof.core.registry
 import dev.moklev.mathproof.equality.eq
 import dev.moklev.mathproof.kernel.ProofEvidence
 import dev.moklev.mathproof.kernel.byEvidence
@@ -48,7 +48,7 @@ interface Ordered<T : SemiringTheory> {
      *
      * `a <= a`
      */
-    val orderReflexive get() = statement("${orderedTheory.name}-order-reflexive") {
+    val orderReflexive get() = registry.cachedStatement("${orderedTheory.name}-order-reflexive") {
         val a = parameter("a", orderedTheory.carrier)
 
         conclusion(leq(a, a))
@@ -60,7 +60,7 @@ interface Ordered<T : SemiringTheory> {
      *
      * `(a <= b) -> (b <= c) -> (a <= c)`
      */
-    val orderTransitive get() = statement("${orderedTheory.name}-order-transitive") {
+    val orderTransitive get() = registry.cachedStatement("${orderedTheory.name}-order-transitive") {
         val a = parameter("a", orderedTheory.carrier)
         val b = parameter("b", orderedTheory.carrier)
         val c = parameter("c", orderedTheory.carrier)
@@ -74,7 +74,7 @@ interface Ordered<T : SemiringTheory> {
      *
      * `(a <= b) -> (b <= a) -> (a == b)`
      */
-    val orderAntisymmetric get() = statement("${orderedTheory.name}-order-antisymmetric") {
+    val orderAntisymmetric get() = registry.cachedStatement("${orderedTheory.name}-order-antisymmetric") {
         val a = parameter("a", orderedTheory.carrier)
         val b = parameter("b", orderedTheory.carrier)
 
@@ -87,7 +87,7 @@ interface Ordered<T : SemiringTheory> {
      *
      * `(a <= b) or (b <= a)`
      */
-    val orderTotal get() = statement("${orderedTheory.name}-order-total") {
+    val orderTotal get() = registry.cachedStatement("${orderedTheory.name}-order-total") {
         val a = parameter("a", orderedTheory.carrier)
         val b = parameter("b", orderedTheory.carrier)
 
@@ -100,7 +100,7 @@ interface Ordered<T : SemiringTheory> {
      *
      * `(x <= y) -> (x + z <= y + z)`
      */
-    val addPreservesOrderRight get() = statement("${orderedTheory.name}-addition-preserves-order-right") {
+    val addPreservesOrderRight get() = registry.cachedStatement("${orderedTheory.name}-addition-preserves-order-right") {
         val x = parameter("x", orderedTheory.carrier)
         val y = parameter("y", orderedTheory.carrier)
         val z = parameter("z", orderedTheory.carrier)
@@ -116,7 +116,7 @@ interface Ordered<T : SemiringTheory> {
      *
      * `(0 <= a) -> (0 <= b) -> (0 <= a * b)`
      */
-    val mulPreservesNonNegative get() = statement("${orderedTheory.name}-mul-preserves-non-negative") {
+    val mulPreservesNonNegative get() = registry.cachedStatement("${orderedTheory.name}-mul-preserves-non-negative") {
         val a = parameter("a", orderedTheory.carrier)
         val b = parameter("b", orderedTheory.carrier)
 

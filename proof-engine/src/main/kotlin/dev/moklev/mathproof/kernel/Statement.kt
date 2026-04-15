@@ -22,7 +22,7 @@ data class AssumedTrue(val note: String? = null) : StatementSupport
 
 data class ProofProvided(val proof: ProofScript) : StatementSupport
 
-data class StatementDefinition(
+class StatementDefinition(
     val name: String,
     val parameters: List<StatementParameter>,
     val premises: List<Expr>,

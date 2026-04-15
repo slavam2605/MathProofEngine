@@ -10,14 +10,15 @@ class ProofVerifier(
     private val externalJustificationValidators: List<ExternalJustificationValidator<out Justification>> = emptyList(),
     private val failOnWarnings: Boolean = true,
 ) {
-    private val verificationCache = mutableMapOf<StatementDefinition, VerificationResult>()
-    private val verificationStack = mutableSetOf<StatementDefinition>()
+    private val verificationCache = mutableMapOf<String, VerificationResult>()
+    private val verificationStack = mutableSetOf<String>()
     private val normalizedExprCache = mutableMapOf<Expr, Expr>()
 
     fun verify(statement: StatementDefinition): VerificationResult {
-        verificationCache[statement]?.let { return it }
+        val statementName = statement.name
+        verificationCache[statementName]?.let { return it }
 
-        if (!verificationStack.add(statement)) {
+        if (!verificationStack.add(statementName)) {
             return VerificationResult(
                 statement = statement,
                 issues = listOf(
@@ -46,10 +47,10 @@ class ProofVerifier(
                 warnings = proofResult.warnings,
             )
 
-            verificationCache[statement] = result
+            verificationCache[statementName] = result
             return result
         } finally {
-            verificationStack.remove(statement)
+            verificationStack.remove(statementName)
         }
     }
 

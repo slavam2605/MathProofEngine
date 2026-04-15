@@ -11,6 +11,7 @@ import dev.moklev.mathproof.logic.LogicLibrary.doubleNegationElimination
 import dev.moklev.mathproof.logic.LogicLibrary.hypotheticalSyllogism
 import dev.moklev.mathproof.logic.applyMp
 import dev.moklev.mathproof.logic.assume
+import dev.moklev.mathproof.logic.contradiction
 import dev.moklev.mathproof.logic.implies
 import dev.moklev.mathproof.logic.not
 import dev.moklev.mathproof.model.CoreSorts
@@ -21,7 +22,7 @@ object FirstOrderLibrary {
      *
      * `(!∃x. !p(x)) -> ∀x. p(x)`
      */
-    val negationExistsNegation = statement("forall-negation") {
+    val negationExistsNegation = statement("negation-exists-negation") {
         val s = sortVariable("S")
         val p = parameter("p", functionSort(s, returns = CoreSorts.Proposition))
 

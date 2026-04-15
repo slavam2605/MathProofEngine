@@ -90,10 +90,15 @@ class ProofVerifierCoreTest {
     @Test
     fun rejectsUnknownPremiseReference() {
         val p = constant("p", CoreSorts.Proposition)
-        val broken = statement("broken-premise-reference") {
+        val base = statement("broken-premise-reference") {
             conclusion(p)
             proof { }
-        }.copy(
+        }
+        val broken = StatementDefinition(
+            name = base.name,
+            parameters = base.parameters,
+            premises = base.premises,
+            conclusion = base.conclusion,
             support = ProofProvided(
                 ProofScript(
                     listOf(
@@ -105,6 +110,7 @@ class ProofVerifierCoreTest {
                     ),
                 ),
             ),
+            instantiationCheck = base.instantiationCheck,
         )
 
         val result = verifier.verify(broken)
@@ -115,11 +121,16 @@ class ProofVerifierCoreTest {
     @Test
     fun rejectsDuplicateLabelsEvenWhenProofScriptIsBuiltManually() {
         val p = constant("p", CoreSorts.Proposition)
-        val broken = statement("duplicate-labels") {
+        val base = statement("duplicate-labels") {
             premise(p)
             conclusion(p)
             proof { }
-        }.copy(
+        }
+        val broken = StatementDefinition(
+            name = base.name,
+            parameters = base.parameters,
+            premises = base.premises,
+            conclusion = base.conclusion,
             support = ProofProvided(
                 ProofScript(
                     listOf(
@@ -128,6 +139,7 @@ class ProofVerifierCoreTest {
                     ),
                 ),
             ),
+            instantiationCheck = base.instantiationCheck,
         )
 
         val result = verifier.verify(broken)

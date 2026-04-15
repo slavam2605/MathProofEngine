@@ -2,14 +2,14 @@ package dev.moklev.mathproof.algebra
 
 import dev.moklev.mathproof.algebra.theories.SemiringTheory
 import dev.moklev.mathproof.core.lambda
-import dev.moklev.mathproof.core.statement
+import dev.moklev.mathproof.core.registry
 import dev.moklev.mathproof.equality.EqualityAxioms
 import dev.moklev.mathproof.equality.EqualityLibrary
 import dev.moklev.mathproof.equality.eq
 import dev.moklev.mathproof.logic.applyMp
 
 object AlgebraLibrary {
-    fun addZeroLeft(theory: SemiringTheory) = statement("${theory.name}-add-zero-left") {
+    fun addZeroLeft(theory: SemiringTheory) = registry.cachedStatement("${theory.name}-add-zero-left") {
         val x = parameter("x", theory.carrier)
 
         conclusion(theory.add(theory.zero, x) eq x)
@@ -25,7 +25,7 @@ object AlgebraLibrary {
         }
     }
 
-    fun expandAdditiveZeroRight(theory: SemiringTheory) = statement("${theory.name}-expand-additive-zero-right") {
+    fun expandAdditiveZeroRight(theory: SemiringTheory) = registry.cachedStatement("${theory.name}-expand-additive-zero-right") {
         val x = parameter("x", theory.carrier)
 
         conclusion(x eq theory.add(x, theory.zero))

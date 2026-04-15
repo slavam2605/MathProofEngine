@@ -1,6 +1,6 @@
 package dev.moklev.mathproof.algebra.theories
 
-import dev.moklev.mathproof.core.statement
+import dev.moklev.mathproof.core.registry
 import dev.moklev.mathproof.equality.eq
 import dev.moklev.mathproof.kernel.ProofEvidence
 import dev.moklev.mathproof.kernel.byEvidence
@@ -29,7 +29,7 @@ interface Commutative<T : SemiringTheory> {
      *
      * `a * b == b * a`
      */
-    val mulCommutative get() = statement("${commutativeTheory.name}-mul-commutative") {
+    val mulCommutative get() = registry.cachedStatement("${commutativeTheory.name}-mul-commutative") {
         val a = parameter("a", commutativeTheory.carrier)
         val b = parameter("b", commutativeTheory.carrier)
 

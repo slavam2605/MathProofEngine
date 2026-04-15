@@ -1,7 +1,7 @@
 package dev.moklev.mathproof.algebra.theories
 
 import dev.moklev.mathproof.core.functionSort
-import dev.moklev.mathproof.core.statement
+import dev.moklev.mathproof.core.registry
 import dev.moklev.mathproof.equality.eq
 import dev.moklev.mathproof.kernel.ProofEvidence
 import dev.moklev.mathproof.kernel.byEvidence
@@ -54,7 +54,7 @@ abstract class SemiringTheory(
      *
      * `(x + y) + z == x + (y + z)`
      */
-    val addAssociative get() = statement("${name}-add-associative") {
+    val addAssociative get() = registry.cachedStatement("${name}-add-associative") {
         val x = parameter("x", carrier)
         val y = parameter("y", carrier)
         val z = parameter("z", carrier)
@@ -68,7 +68,7 @@ abstract class SemiringTheory(
      *
      * `x + y == y + x`
      */
-    val addCommutative get() = statement("${name}-add-commutative") {
+    val addCommutative get() = registry.cachedStatement("${name}-add-commutative") {
         val x = parameter("x", carrier)
         val y = parameter("y", carrier)
 
@@ -81,7 +81,7 @@ abstract class SemiringTheory(
      *
      * `x + 0 == x`
      */
-    val addZeroRight get() = statement("${name}-add-zero-right") {
+    val addZeroRight get() = registry.cachedStatement("${name}-add-zero-right") {
         val x = parameter("x", carrier)
 
         conclusion(add(x, zero) eq x)
@@ -93,7 +93,7 @@ abstract class SemiringTheory(
      *
      * `(x * y) * z == x * (y * z)`
      */
-    val mulAssociative get() = statement("${name}-mul-associative") {
+    val mulAssociative get() = registry.cachedStatement("${name}-mul-associative") {
         val x = parameter("x", carrier)
         val y = parameter("y", carrier)
         val z = parameter("z", carrier)
@@ -107,7 +107,7 @@ abstract class SemiringTheory(
      *
      * `0 * x == 0`
      */
-    val mulZeroLeft get() = statement("${name}-mul-zero-left") {
+    val mulZeroLeft get() = registry.cachedStatement("${name}-mul-zero-left") {
         val x = parameter("x", carrier)
 
         conclusion(mul(zero, x) eq zero)
@@ -119,7 +119,7 @@ abstract class SemiringTheory(
      *
      * `x * 0 == 0`
      */
-    val mulZeroRight get() = statement("${name}-mul-zero-right") {
+    val mulZeroRight get() = registry.cachedStatement("${name}-mul-zero-right") {
         val x = parameter("x", carrier)
 
         conclusion(mul(x, zero) eq zero)
@@ -131,7 +131,7 @@ abstract class SemiringTheory(
      *
      * `1 * x == x`
      */
-    val mulOneLeft get() = statement("${name}-mul-one-left") {
+    val mulOneLeft get() = registry.cachedStatement("${name}-mul-one-left") {
         val x = parameter("x", carrier)
 
         conclusion(mul(one, x) eq x)
@@ -143,7 +143,7 @@ abstract class SemiringTheory(
      *
      * `x * 1 == x`
      */
-    val mulOneRight get() = statement("${name}-mul-one-right") {
+    val mulOneRight get() = registry.cachedStatement("${name}-mul-one-right") {
         val x = parameter("x", carrier)
 
         conclusion(mul(x, one) eq x)
@@ -155,7 +155,7 @@ abstract class SemiringTheory(
      *
      * `x * (y + z) == (x * y) + (x * z)`
      */
-    val mulDistributesOverAddLeft get() = statement("${name}-mul-distributes-over-add-left") {
+    val mulDistributesOverAddLeft get() = registry.cachedStatement("${name}-mul-distributes-over-add-left") {
         val x = parameter("x", carrier)
         val y = parameter("y", carrier)
         val z = parameter("z", carrier)
@@ -169,7 +169,7 @@ abstract class SemiringTheory(
      *
      * `(x + y) * z == (x * z) + (y * z)`
      */
-    val mulDistributesOverAddRight get() = statement("${name}-mul-distributes-over-add-right") {
+    val mulDistributesOverAddRight get() = registry.cachedStatement("${name}-mul-distributes-over-add-right") {
         val x = parameter("x", carrier)
         val y = parameter("y", carrier)
         val z = parameter("z", carrier)
