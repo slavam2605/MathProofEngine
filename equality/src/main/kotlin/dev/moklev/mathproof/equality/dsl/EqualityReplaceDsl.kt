@@ -1,6 +1,8 @@
 package dev.moklev.mathproof.equality.dsl
 
 import dev.moklev.mathproof.dsl.Occurences
+import dev.moklev.mathproof.dsl.ExprPath
+import dev.moklev.mathproof.dsl.ExprPathStep
 import dev.moklev.mathproof.equality.EqualityAxioms
 import dev.moklev.mathproof.equality.EqualityFunctions
 import dev.moklev.mathproof.kernel.DerivationFact
@@ -43,6 +45,10 @@ private data class EqualitySides(
     val right: Expr,
 )
 
+private data class OccurrenceInfo(
+    val path: ExprPath,
+)
+
 private fun buildRewritePlan(
     sourceClaim: Expr,
     equalityClaim: Expr,
@@ -53,15 +59,17 @@ private fun buildRewritePlan(
     val from = equality.left
     val to = equality.right
 
-    val totalOccurrences = countOccurrences(sourceClaim, from)
-    require(totalOccurrences > 0) {
+    val occurrences = collectOccurrences(sourceClaim, from)
+    require(occurrences.isNotEmpty()) {
         "$apiName cannot rewrite '$sourceClaim' using '$equalityClaim': no occurrences of '$from' found."
     }
 
     val selectedIndices = resolveSelectedIndices(
         at = at,
-        totalOccurrences = totalOccurrences,
+        occurrences = occurrences,
         apiName = apiName,
+        sourceClaim = sourceClaim,
+        from = from,
     )
     val placeholder = freshFree(
         displayName = "replace",
@@ -90,12 +98,14 @@ private fun buildRewritePlan(
 
 private fun resolveSelectedIndices(
     at: Occurences,
-    totalOccurrences: Int,
+    occurrences: List<OccurrenceInfo>,
     apiName: String,
+    sourceClaim: Expr,
+    from: Expr,
 ): Set<Int> = when (at) {
-    Occurences.All -> (0 until totalOccurrences).toSet()
+    Occurences.All -> occurrences.indices.toSet()
     Occurences.First -> setOf(0)
-    Occurences.Last -> setOf(totalOccurrences - 1)
+    Occurences.Last -> setOf(occurrences.lastIndex)
     is Occurences.Only -> {
         val indices = at.zeroBasedIndices
         require(indices.isNotEmpty()) {
@@ -105,34 +115,120 @@ private fun resolveSelectedIndices(
         require(negative == null) {
             "$apiName received negative occurrence index $negative."
         }
-        val outOfRange = indices.firstOrNull { index -> index >= totalOccurrences }
+        val outOfRange = indices.firstOrNull { index -> index >= occurrences.size }
         require(outOfRange == null) {
-            "$apiName occurrence index $outOfRange is out of bounds: found $totalOccurrences occurrence(s)."
+            "$apiName occurrence index $outOfRange is out of bounds: found ${occurrences.size} occurrence(s)."
         }
         indices
     }
+    is Occurences.Path -> {
+        val nodeAtPath = resolveNodeAtPath(
+            root = sourceClaim,
+            path = at.path,
+            apiName = apiName,
+        )
+        require(matchesAtDepth(expr = nodeAtPath, target = from, depth = 0)) {
+            "$apiName path '${at.path}' points to '$nodeAtPath', which is not an occurrence of '$from' in '$sourceClaim'."
+        }
+        val occurrenceIndex = occurrences.indexOfFirst { occurrence -> occurrence.path == at.path }
+        check(occurrenceIndex >= 0) {
+            "$apiName internal error: path '${at.path}' matched '$from' but was not indexed as an occurrence."
+        }
+        setOf(occurrenceIndex)
+    }
 }
 
-private fun countOccurrences(expr: Expr, target: Expr): Int {
-    var count = 0
+private fun collectOccurrences(
+    expr: Expr,
+    target: Expr,
+): List<OccurrenceInfo> {
+    val occurrences = mutableListOf<OccurrenceInfo>()
 
-    fun walk(node: Expr, depth: Int) {
+    fun walk(
+        node: Expr,
+        depth: Int,
+        path: ExprPath,
+    ) {
         if (matchesAtDepth(expr = node, target = target, depth = depth)) {
-            count += 1
+            occurrences += OccurrenceInfo(path = path)
             return
         }
         when (node) {
             is Free, is Bound -> Unit
-            is Lambda -> walk(node.body, depth + 1)
+            is Lambda -> walk(
+                node = node.body,
+                depth = depth + 1,
+                path = path / ExprPathStep.Body,
+            )
             is Apply -> {
-                walk(node.function, depth)
-                walk(node.argument, depth)
+                walk(
+                    node = node.function,
+                    depth = depth,
+                    path = path / ExprPathStep.Function,
+                )
+                walk(
+                    node = node.argument,
+                    depth = depth,
+                    path = path / ExprPathStep.Argument,
+                )
             }
         }
     }
 
-    walk(expr, depth = 0)
-    return count
+    walk(expr, depth = 0, path = ExprPath.Root)
+    return occurrences
+}
+
+private fun resolveNodeAtPath(
+    root: Expr,
+    path: ExprPath,
+    apiName: String,
+): Expr {
+    var current: Expr = root
+    path.steps.forEachIndexed { index, step ->
+        current = when (step) {
+            ExprPathStep.Function -> {
+                val apply = current as? Apply
+                    ?: throw IllegalArgumentException(
+                        "$apiName cannot follow path '$path' at step ${index + 1} (Function): expected Apply, got '$current'.",
+                    )
+                apply.function
+            }
+            ExprPathStep.Argument -> {
+                val apply = current as? Apply
+                    ?: throw IllegalArgumentException(
+                        "$apiName cannot follow path '$path' at step ${index + 1} (Argument): expected Apply, got '$current'.",
+                    )
+                apply.argument
+            }
+            ExprPathStep.Body -> {
+                val lambda = current as? Lambda
+                    ?: throw IllegalArgumentException(
+                        "$apiName cannot follow path '$path' at step ${index + 1} (Body): expected Lambda, got '$current'.",
+                    )
+                lambda.body
+            }
+            ExprPathStep.BinLeft -> {
+                val apply = current as? Apply
+                    ?: throw IllegalArgumentException(
+                        "$apiName cannot follow path '$path' at step ${index + 1} (BinLeft): expected Apply, got '$current'.",
+                    )
+                val leftBranch = apply.function as? Apply
+                    ?: throw IllegalArgumentException(
+                        "$apiName cannot follow path '$path' at step ${index + 1} (BinLeft): expected Apply.function to be Apply, got '${apply.function}'.",
+                    )
+                leftBranch.argument
+            }
+            ExprPathStep.BinRight -> {
+                val apply = current as? Apply
+                    ?: throw IllegalArgumentException(
+                        "$apiName cannot follow path '$path' at step ${index + 1} (BinRight): expected Apply, got '$current'.",
+                    )
+                apply.argument
+            }
+        }
+    }
+    return current
 }
 
 private fun replaceOccurrencesByIndex(
@@ -205,7 +301,7 @@ private fun matchesAtDepth(
     }
     is Bound -> {
         val actual = expr as? Bound ?: return false
-        actual.index == target.index + depth && actual.sort == target.sort
+        actual.index == target.index && actual.sort == target.sort
     }
     is Lambda -> {
         val actual = expr as? Lambda ?: return false

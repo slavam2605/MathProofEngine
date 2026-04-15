@@ -2,6 +2,8 @@ package dev.moklev.mathproof.equality.dsl
 
 import dev.moklev.mathproof.core.constant
 import dev.moklev.mathproof.core.function
+import dev.moklev.mathproof.core.functionSort
+import dev.moklev.mathproof.core.lambda
 import dev.moklev.mathproof.core.statement
 import dev.moklev.mathproof.dsl.Occurences
 import dev.moklev.mathproof.equality.eq
@@ -10,6 +12,8 @@ import dev.moklev.mathproof.kernel.StatementDefinition
 import dev.moklev.mathproof.logic.assume
 import dev.moklev.mathproof.logic.implies
 import dev.moklev.mathproof.model.CoreSorts
+import dev.moklev.mathproof.dsl.ExprPath
+import dev.moklev.mathproof.dsl.ExprPathStep
 import dev.moklev.mathproof.model.NamedSort
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -114,6 +118,93 @@ class EqualityReplaceDslTest {
         }
 
         assertVerifies(theorem)
+    }
+
+    @Test
+    fun replacesLambdaSubexpressionOccurrences() {
+        val nat = NamedSort("Nat")
+        val zeroNat = constant("zeroNat", nat)
+        val ss0 = constant("SS0", nat)
+        val mulNat = function("mulNat", nat, nat, returns = nat)
+        val sumNat = function(
+            "sumNat",
+            nat,
+            functionSort(nat, returns = nat),
+            returns = nat,
+        )
+        val idLambda = lambda("i", nat) { i -> i }
+        val sumExpr = sumNat(zeroNat, idLambda)
+
+        val theorem = statement("replace-lambda-subexpression-occurrence") {
+            val base = premise(mulNat(ss0, sumExpr) eq mulNat(ss0, sumExpr))
+            val rewrite = premise(sumExpr eq zeroNat)
+
+            conclusion(mulNat(ss0, zeroNat) eq mulNat(ss0, sumExpr))
+            proof {
+                val baseFact = given(base)
+                val rewriteFact = given(rewrite)
+                baseFact.replace(using = rewriteFact, at = Occurences.First)
+            }
+        }
+
+        assertVerifies(theorem)
+    }
+
+    @Test
+    fun replacesOnlyOccurrenceAtGivenPath() {
+        val firstOccurrence = mul(y, zero)
+        val secondOccurrence = mul(y, zero)
+        val baseExpression = mul(firstOccurrence, secondOccurrence)
+        val exactRewriteFact = (yTimesZero eq x)
+        val secondOccurrencePath = ExprPath.Root /
+            ExprPathStep.Function /
+            ExprPathStep.BinRight /
+            ExprPathStep.BinRight
+
+        val theorem = statement("replace-occurrence-at-given-path") {
+            val base = premise(baseExpression eq zero)
+            val rewrite = premise(exactRewriteFact)
+
+            conclusion(mul(firstOccurrence, x) eq zero)
+            proof {
+                val baseFact = given(base)
+                val rewriteFact = given(rewrite)
+                baseFact.replace(
+                    using = rewriteFact,
+                    at = Occurences.Path(secondOccurrencePath),
+                )
+            }
+        }
+
+        assertVerifies(theorem)
+    }
+
+    @Test
+    fun rejectsPathWhenItDoesNotPointToTargetOccurrence() {
+        val firstOccurrence = mul(y, zero)
+        val secondOccurrence = mul(y, zero)
+        val baseExpression = mul(firstOccurrence, secondOccurrence)
+        val exactRewriteFact = (yTimesZero eq x)
+        val rhsPath = ExprPath.Root / ExprPathStep.BinRight
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            statement("replace-path-does-not-point-to-target-occurrence") {
+                val base = premise(baseExpression eq zero)
+                val rewrite = premise(exactRewriteFact)
+
+                conclusion(baseExpression eq zero)
+                proof {
+                    val baseFact = given(base)
+                    val rewriteFact = given(rewrite)
+                    baseFact.replace(
+                        using = rewriteFact,
+                        at = Occurences.Path(rhsPath),
+                    )
+                }
+            }
+        }
+
+        assertTrue(error.message!!.contains("not an occurrence"))
     }
 
     @Test
