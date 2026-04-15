@@ -3,16 +3,29 @@ package dev.moklev.mathproof.nat
 import dev.moklev.mathproof.core.functionSort
 import dev.moklev.mathproof.core.statement
 import dev.moklev.mathproof.equality.eq
-import dev.moklev.mathproof.fol.exists
 import dev.moklev.mathproof.fol.forall
 import dev.moklev.mathproof.logic.implies
 import dev.moklev.mathproof.logic.not
 import dev.moklev.mathproof.model.CoreSorts
-import dev.moklev.mathproof.nat.NatTheory.leq
 
 object NatAxioms {
-    // ========== Core Axioms ==========
+    /**
+     * `x: Nat`
+     *
+     * `!(succ(x) == 0)`
+     */
+    val succNotZero = statement("nat-succ-zero") {
+        val x = parameter("x", NatSorts.Nat)
 
+        conclusion(!(succ(x) eq NatFunctions.Zero))
+        assumed("Trusted arithmetic axiom: zero is never a successor.")
+    }
+
+    /**
+     * `x, y: Nat`
+     *
+     * `succ(x) == succ(y) -> x == y`
+     */
     val succInjective = statement("nat-succ-injective") {
         val x = parameter("x", NatSorts.Nat)
         val y = parameter("y", NatSorts.Nat)
@@ -21,13 +34,11 @@ object NatAxioms {
         assumed("Trusted arithmetic axiom: successor is injective.")
     }
 
-    val succNotZero = statement("nat-succ-zero") {
-        val x = parameter("x", NatSorts.Nat)
-
-        conclusion(!(succ(x) eq NatFunctions.Zero))
-        assumed("Trusted arithmetic axiom: zero is never a successor.")
-    }
-
+    /**
+     * `p: Nat -> Proposition`
+     *
+     * `p(0) -> (∀n. p(n) -> p(S(n))) -> ∀n. p(n)`
+     */
     val induction = statement("nat-induction") {
         val predicate = parameter("predicate", functionSort(NatSorts.Nat, returns = CoreSorts.Proposition))
 
@@ -39,55 +50,45 @@ object NatAxioms {
         assumed("Trusted induction schema for natural numbers.")
     }
 
-    // ========== Addition Definition ==========
+    /**
+     * `x: Nat`
+     *
+     * `x + 0 == x`
+     */
+    val addDefinitionZero = NatFunctions.AddDef.axiom("nat-add-definition-zero")
 
-    val addDefinitionZero = statement("nat-add-definition-zero") {
-        val x = parameter("x", NatSorts.Nat)
+    /**
+     * `x, y: Nat`
+     *
+     * `x + S(y) == S(x + y)`
+     */
+    val addDefinitionSucc = NatFunctions.AddDef.axiom("nat-add-definition-succ")
 
-        conclusion((x + NatFunctions.Zero) eq x)
-        assumed("Trusted arithmetic axiom: addition with zero is the identity.")
-    }
+    /**
+     * `x: Nat`
+     *
+     * `x * 0 == 0`
+     */
+    val mulDefinitionZero = NatFunctions.MulDef.axiom("nat-mul-definition-zero")
 
-    val addDefinitionSucc = statement("nat-add-definition-succ") {
-        val x = parameter("x", NatSorts.Nat)
-        val y = parameter("y", NatSorts.Nat)
+    /**
+     * `x, y: Nat`
+     *
+     * `x * S(y) == x + x * y`
+     */
+    val mulDefinitionSucc = NatFunctions.MulDef.axiom("nat-mul-definition-succ")
 
-        conclusion((x + succ(y)) eq succ(x + y))
-        assumed("Trusted arithmetic axiom: addition with a successor unfolds recursively on the right.")
-    }
+    /**
+     * `x, y: Nat`
+     *
+     * `(∃t. x + t == y) -> x <= y`
+     */
+    val leqIntroduction = NatFunctions.LeqDef.axiom("nat-leq-introduction")
 
-    // ========== Multiplication Definition ==========
-
-    val mulDefinitionZero = statement("nat-mul-definition-zero") {
-        val x = parameter("x", NatSorts.Nat)
-
-        conclusion(x * NatFunctions.Zero eq NatFunctions.Zero)
-        assumed("Definition of multiplication with zero.")
-    }
-
-    val mulDefinitionSucc = statement("nat-mul-definition-succ") {
-        val x = parameter("x", NatSorts.Nat)
-        val y = parameter("y", NatSorts.Nat)
-
-        conclusion(x * succ(y) eq (x + x * y))
-        assumed("Recursive definition of multiplication with a successor.")
-    }
-
-    // ========== Order Definition ==========
-
-    val leqIntroduction = statement("nat-leq-introduction") {
-        val a = parameter("a", NatSorts.Nat)
-        val b = parameter("b", NatSorts.Nat)
-
-        conclusion(exists("x", NatSorts.Nat) { x -> a + x eq b } implies leq(a, b))
-        assumed("Definition of Nat.leq: introduction.")
-    }
-
-    val leqElimination = statement("nat-leq-elimination") {
-        val a = parameter("a", NatSorts.Nat)
-        val b = parameter("b", NatSorts.Nat)
-
-        conclusion(leq(a, b) implies exists("x", NatSorts.Nat) { x -> a + x eq b })
-        assumed("Definition of Nat.leq: elimination.")
-    }
+    /**
+     * `x, y: Nat`
+     *
+     * `x <= y -> (∃t. x + t == y)`
+     */
+    val leqElimination = NatFunctions.LeqDef.axiom("nat-leq-elimination")
 }

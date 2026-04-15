@@ -1,53 +1,11 @@
 package dev.moklev.mathproof.nat
 
-import dev.moklev.mathproof.core.global
 import dev.moklev.mathproof.model.Apply
-import dev.moklev.mathproof.model.Associativity
-import dev.moklev.mathproof.model.CoreSorts
 import dev.moklev.mathproof.model.Expr
-import dev.moklev.mathproof.model.ExprNotation
-import dev.moklev.mathproof.model.ExprPrecedence
 import dev.moklev.mathproof.model.ExprNotationRegistry
-import dev.moklev.mathproof.model.NamedSort
-import dev.moklev.mathproof.model.Sort
 
-object NatSorts {
-    val Nat: Sort = NamedSort("Nat")
-}
-
-object NatFunctions {
-    private val namespace = global.namespace("nat")
-
-    val Zero = namespace.constant("zero", NatSorts.Nat, displayName = "0")
-    val Succ = namespace.function("succ", NatSorts.Nat, returns = NatSorts.Nat, displayName = "S")
-    val Add = namespace.function("add", NatSorts.Nat, NatSorts.Nat, returns = NatSorts.Nat, displayName = "+")
-    val Mul = namespace.function("mul", NatSorts.Nat, NatSorts.Nat, returns = NatSorts.Nat, displayName = "*")
-    val Leq = namespace.function("leq", NatSorts.Nat, NatSorts.Nat, returns = CoreSorts.Proposition, displayName = "<=n")
-
-    init {
-        ExprNotationRegistry.register { head, arguments ->
-            when {
-                head == Succ && arguments.size == 1 -> ExprNotation.Prefix("S", precedence = ExprPrecedence.PREFIX)
-                head == Add && arguments.size == 2 -> ExprNotation.Infix(
-                    "+",
-                    precedence = ExprPrecedence.ADDITIVE,
-                    associativity = Associativity.LEFT,
-                )
-                head == Mul && arguments.size == 2 -> ExprNotation.Infix(
-                    "*",
-                    precedence = ExprPrecedence.MULTIPLICATIVE,
-                    associativity = Associativity.LEFT,
-                )
-                head == Leq && arguments.size == 2 -> ExprNotation.Infix(
-                    "<=",
-                    precedence = ExprPrecedence.COMPARISON,
-                    associativity = Associativity.LEFT,
-                )
-                else -> null
-            }
-        }
-        ExprNotationRegistry.register { expr: Expr -> asNumeralOrNull(expr)?.toString() }
-    }
+internal fun registerNatSyntax() {
+    ExprNotationRegistry.register { expr -> asNumeralOrNull(expr)?.toString() }
 }
 
 fun succ(expr: Expr): Expr = NatFunctions.Succ(expr)
