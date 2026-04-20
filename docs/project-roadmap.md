@@ -16,6 +16,13 @@ This roadmap is organized as commit-sized slices so the repository grows in a wa
 - Improve proof ergonomics for long rewrite/transitivity chains used in arithmetic/order proofs.
 - Continue reducing overload friction between root and scoped proof DSL APIs.
 - Add parser/text-script layer while keeping Kotlin DSL as canonical lossless representation.
+- Introduce recoverable proof-step failures (typed diagnostics/results) instead of fail-fast exceptions in APIs like `assume`, `contradiction`, `ring`, and similar proof helpers.
+
+## Test Infrastructure Idea
+
+- Add a `StatementRegistry` test-only scoped namespace API (for example, `withTempNamespace`) so tests can register temporary statement names without colliding in the global registry.
+- Scope behavior: prepend a unique prefix to local test statement names, track created entries, and clear them automatically at scope exit (`finally`).
+- Longer-term alternative: move from a process-global registry to context-local registries (larger refactor, cleaner isolation model).
 
 ## Suggested Next Commits
 

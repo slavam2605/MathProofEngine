@@ -141,15 +141,10 @@ class NatOrderedEvidence : Ordered.Evidence {
         assume(x leq y) { leqXY ->
             val exXY = applyMp(leqElimination, leqXY) // exists k. x + k == y
             eliminateExists(exXY, "k") { k, xkyEq -> // x + k == y
-                val xzkAssoc = infer(addAssociative(x, z, k)) // (x + z) + k == x + (z + k)
-                val kzFlip = infer(addCommutative(k, z)).flipEq() // k + z == z + k
-                val step1 = xzkAssoc.replace(kzFlip) // (x + z) + k = x + (k + z)
-
-                val xkzAssocFlip = infer(addAssociative(x, k, z)).flipEq() // x + (k + z) == (x + k) + z
-                val step2 = step1.replace(xkzAssocFlip) // (x + z) + k = (x + k) + z
-                val step3 = step2.replace(xkyEq) // (x + z) + k == y + z
-                val step4 = step3.introduceExists(k)
-                applyMp(leqIntroduction, step4)
+                val step1 = natRing(x + z + k, (x + k) + z) // (x + z) + k = (x + k) + z
+                val step2 = step1.replace(xkyEq) // (x + z) + k == y + z
+                val step3 = step2.introduceExists(k)
+                applyMp(leqIntroduction, step3)
             }
         }
     }

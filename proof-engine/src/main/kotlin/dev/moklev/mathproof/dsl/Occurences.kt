@@ -19,6 +19,8 @@ value class ExprPath private constructor(val steps: List<ExprPathStep>) {
     }
 
     operator fun div(step: ExprPathStep): ExprPath = ExprPath(steps + step.expand())
+
+    fun parent(depth: Int = 1): ExprPath = ExprPath(steps.dropLast(depth))
 }
 
 private fun ExprPathStep.expand(): List<ExprPathStep> = when (this) {
